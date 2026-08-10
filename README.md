@@ -1,0 +1,62 @@
+# Ships Trade Analyzer
+
+Brings the analysis of [X4 Player Ship Trade Analyzer](https://www.nexusmods.com/x4foundations/mods/1801) into the game itself. No save file, no external tool, no game folder to point at: the mod reads the trade log the game already keeps for your ships and shows you who is earning, on what, and how well loaded they ran.
+
+**Important**: the game only records trade logs for ships flown by AI pilots. A ship you fly yourself produces no entries, and neither does one without a pilot.
+
+## Features
+
+- **Two analysis modes**
+  - **By Transactions** - every buy and sell is counted on its own. Faster and shows more, but profit is estimated against the ware's average price.
+  - **By Trades** - buys are matched against the sells that emptied the hold again, so profit is real. Shows fewer rows, since a ship still carrying cargo has no completed trade yet.
+- **Five views**, both modes:
+  - **Details** - the full table for the selected ship. Time, operation, ware, station, sector, price, quantity, total, estimated profit and cargo load. In By Trades mode each row expands to the individual buy and sell legs behind it.
+  - **Profit over Time** - cumulative profit per ship as a line graph, up to 8 ships at once.
+  - **Ships by Wares** - ranked bars, one per ship, split by the wares it traded.
+  - **Wares by Ships** - the same, transposed: one bar per ware, split by the ships that carried it.
+  - **Cargo Load** - how full each ship actually ran, average and best.
+- **Filters** applying to every view - parent station \(any, none, or one specific station\), ship class \(XL, L, M, S\), cargo type \(container, solid, liquid, gas\) and whether trades between your own stations count.
+- **Sorting** of the ship list by name or by profit, with the filtered total shown above it.
+- **Top N and reverse order** on the ranked views.
+
+## Usage
+
+Right-click any player-owned ship or station and pick **Trade Analyzer**.
+
+Opening it on a ship preselects that ship. Opening it on a station preselects that station as the parent-station filter, so you immediately see just the ships assigned to it.
+
+The data is read when the menu opens. Press **Refresh** to read it again after playing on.
+
+## Settings
+
+Found under Extension Options.
+
+- **History Window** - how far back to read the trade log, in hours. 0 reads the whole recorded history. Lower it if opening the menu feels slow on a very long save.
+- **Include Internal Trades by Default** - the starting state of the internal-trade filter in the menu.
+- **Debug Level** - None, Debug or Trace. Leave at None unless you are reporting a problem.
+
+## Requirements
+
+- [SirNukes Mod Support APIs](https://www.nexusmods.com/x4foundations/mods/503)
+- [Options Helper](https://www.nexusmods.com/x4foundations/mods/1660)
+- [Print Extension List](https://www.nexusmods.com/x4foundations/mods/1793)
+
+## Notes and limitations
+
+- Ships that have been destroyed or sold no longer appear. Their trades live on in the player account log, but the ship itself is gone from the game and cannot be listed.
+- Profit in By Transactions mode is an estimate. For container wares it compares against the ware's average price; for mined solids, liquids and gases there is no purchase to compare against, so the whole sale counts as profit.
+- Ships carrying scrap always read as fully loaded - the game does not report a usable per-unit volume for it.
+- The game's UI has no bar chart widget, so the ware breakdowns and the load view are drawn as horizontal bars rather than column charts.
+
+## Credits
+
+- Author: Chem O`Dun
+- In-game counterpart of [X4 Player Ship Trade Analyzer](https://github.com/chemodun/X4PlayerShipTradeAnalyzer), which analyses the same data out of a save file.
+- Not affiliated with Egosoft. "X4: Foundations" is a trademark of its respective owner.
+
+## Changelog
+
+### [1.00] - 2026-08-??
+
+- **Added**
+  - Initial release.

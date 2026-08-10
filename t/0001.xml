@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ships Trade Analyzer - English text, page 1972092439 -->
+<diff>
+    <add sel="/language">
+        <page id="1972092439" title="Ships Trade Analyzer" descr="" voice="no">
+            <!-- mod identity -->
+            <t id="1">Ships Trade Analyzer</t>
+            <t id="2">Analyses the trade log of your ships in-game: profit per ship and per ware, transaction and completed-trade tables, profit graphs, ware breakdowns and cargo load statistics.</t>
+
+            <!-- dropdown items -->
+            <t id="100">By Transactions</t>
+            <t id="101">By Trades</t>
+            <t id="102">Details</t>
+            <t id="103">Profit over Time</t>
+            <t id="104">Ships by Wares</t>
+            <t id="105">Wares by Ships</t>
+            <t id="106">Cargo Load</t>
+            <t id="107">Any</t>
+            <t id="108">None</t>
+            <t id="109">All</t>
+
+            <!-- column headers -->
+            <t id="110">Time</t>
+            <t id="111">Operation</t>
+            <t id="112">Ware</t>
+            <t id="113">Price</t>
+            <t id="114">Quantity</t>
+            <t id="115">Total</t>
+            <t id="116">Est. Profit</t>
+            <t id="117">Station</t>
+            <t id="118">Sector</t>
+            <t id="119">Load</t>
+
+            <!-- section labels -->
+            <t id="121">Filters</t>
+            <t id="122">Ships</t>
+
+            <!-- completed-trade column headers -->
+            <t id="130">Bought</t>
+            <t id="131">Sold</t>
+            <t id="132">Profit</t>
+            <t id="133">Duration</t>
+
+            <!-- menu -->
+            <t id="1000">Ships Trade Analyzer</t>
+            <t id="1001">Analysis Mode</t>
+            <t id="1002">View</t>
+            <t id="1003">Parent Station</t>
+            <t id="1004">Ship Class</t>
+            <t id="1005">Cargo Type</t>
+            <t id="1006">Internal Trades</t>
+            <t id="1007">Sort By</t>
+            <t id="1008">Name</t>
+            <t id="1009">Profit</t>
+            <t id="1010">Top</t>
+            <t id="1011">Reverse Order</t>
+            <t id="1012">Refresh</t>
+            <t id="1014">Trade Analyzer</t>
+            <t id="1015">No trade data found. The game only records trade logs for ships flown by AI pilots.</t>
+            <t id="1016">Nothing matches the current filters.</t>
+            <t id="1017">Select a ship on the left to see its details.</t>
+            <t id="1018">Buy</t>
+            <t id="1019">Sell</t>
+            <t id="1020">Container</t>
+            <t id="1021">Solid</t>
+            <t id="1022">Liquid</t>
+            <t id="1023">Gas</t>
+            <t id="1025">Average</t>
+            <t id="1026">Best</t>
+            <t id="1029">min</t>
+            <t id="1030">h</t>
+
+            <!-- Options page -->
+            <t id="90101">History Window \(0 = all\)</t>
+            <t id="90102">Include Internal Trades by Default</t>
+
+            <!-- Section: Debug (90900) -->
+            <t id="90900">Debug</t>
+            <t id="90910">Debug Level</t>
+            <t id="90911">None</t>
+            <t id="90912">Debug</t>
+            <t id="90913">Trace</t>
+        </page>
+    </add>
+</diff>

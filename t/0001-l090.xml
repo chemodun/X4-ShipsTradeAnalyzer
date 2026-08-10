@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ships Trade Analyzer - Turkish text, page 1972092439 -->
+<diff>
+    <add sel="/language">
+        <page id="1972092439" title="Gemi Ticaret Analizcisi" descr="" voice="no">
+            <!-- mod identity -->
+            <t id="1">Gemi Ticaret Analizcisi</t>
+            <t id="2">Gemilerinizin ticaret kaydını oyun içinde analiz eder: gemi ve mal başına kâr, işlem ve tamamlanmış ticaret tabloları, kâr grafikleri, mal dökümleri ve kargo doluluk istatistikleri.</t>
+
+            <!-- dropdown items -->
+            <t id="100">İşlemlere göre</t>
+            <t id="101">Ticaretlere göre</t>
+            <t id="102">Ayrıntılar</t>
+            <t id="103">Zamana göre kâr</t>
+            <t id="104">Mala göre gemiler</t>
+            <t id="105">Gemiye göre mallar</t>
+            <t id="106">Kargo doluluğu</t>
+            <t id="107">Herhangi</t>
+            <t id="108">Yok</t>
+            <t id="109">Tümü</t>
+
+            <!-- column headers -->
+            <t id="110">Zaman</t>
+            <t id="111">İşlem</t>
+            <t id="112">Mal</t>
+            <t id="113">Fiyat</t>
+            <t id="114">Miktar</t>
+            <t id="115">Toplam</t>
+            <t id="116">Tah. kâr</t>
+            <t id="117">İstasyon</t>
+            <t id="118">Sektör</t>
+            <t id="119">Doluluk</t>
+
+            <!-- section labels -->
+            <t id="121">Filtreler</t>
+            <t id="122">Gemiler</t>
+
+            <!-- completed-trade column headers -->
+            <t id="130">Alınan</t>
+            <t id="131">Satılan</t>
+            <t id="132">Kâr</t>
+            <t id="133">Süre</t>
+
+            <!-- menu -->
+            <t id="1000">Gemi Ticaret Analizcisi</t>
+            <t id="1001">Analiz modu</t>
+            <t id="1002">Görünüm</t>
+            <t id="1003">Bağlı istasyon</t>
+            <t id="1004">Gemi sınıfı</t>
+            <t id="1005">Kargo türü</t>
+            <t id="1006">İç ticaretler</t>
+            <t id="1007">Sıralama</t>
+            <t id="1008">İsim</t>
+            <t id="1009">Kâr</t>
+            <t id="1010">İlk</t>
+            <t id="1011">Ters sıra</t>
+            <t id="1012">Yenile</t>
+            <t id="1014">Ticaret Analizcisi</t>
+            <t id="1015">Ticaret verisi bulunamadı. Oyun yalnızca yapay zeka pilotlarının uçurduğu gemiler için ticaret kaydı tutar.</t>
+            <t id="1016">Geçerli filtrelerle eşleşen bir şey yok.</t>
+            <t id="1017">Ayrıntıları görmek için soldan bir gemi seçin.</t>
+            <t id="1018">Alım</t>
+            <t id="1019">Satım</t>
+            <t id="1020">Konteyner</t>
+            <t id="1021">Katı</t>
+            <t id="1022">Sıvı</t>
+            <t id="1023">Gaz</t>
+            <t id="1025">Ortalama</t>
+            <t id="1026">En iyi</t>
+            <t id="1029">dk</t>
+            <t id="1030">sa</t>
+
+            <!-- Options page -->
+            <t id="90101">Geçmiş penceresi \(0 = tümü\)</t>
+            <t id="90102">İç ticaretleri varsayılan olarak dahil et</t>
+
+            <!-- Section: Debug (90900) -->
+            <t id="90900">Hata Ayıklama</t>
+            <t id="90910">Hata Ayıklama Seviyesi</t>
+            <t id="90911">Yok</t>
+            <t id="90912">Hata Ayıklama</t>
+            <t id="90913">İzleme</t>
+        </page>
+    </add>
+</diff>

@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ships Trade Analyzer - French text, page 1972092439 -->
+<diff>
+    <add sel="/language">
+        <page id="1972092439" title="Analyseur de commerce des vaisseaux" descr="" voice="no">
+            <!-- mod identity -->
+            <t id="1">Analyseur de commerce des vaisseaux</t>
+            <t id="2">Analyse le journal commercial de vos vaisseaux en jeu : bénéfice par vaisseau et par marchandise, tableaux des transactions et des échanges complets, graphiques de bénéfices, répartitions par marchandise et statistiques de remplissage des soutes.</t>
+
+            <!-- dropdown items -->
+            <t id="100">Par transactions</t>
+            <t id="101">Par échanges</t>
+            <t id="102">Détails</t>
+            <t id="103">Bénéfice dans le temps</t>
+            <t id="104">Vaisseaux par marchandises</t>
+            <t id="105">Marchandises par vaisseaux</t>
+            <t id="106">Remplissage des soutes</t>
+            <t id="107">Indifférent</t>
+            <t id="108">Aucune</t>
+            <t id="109">Toutes</t>
+
+            <!-- column headers -->
+            <t id="110">Temps</t>
+            <t id="111">Opération</t>
+            <t id="112">Marchandise</t>
+            <t id="113">Prix</t>
+            <t id="114">Quantité</t>
+            <t id="115">Total</t>
+            <t id="116">Bénéfice est.</t>
+            <t id="117">Station</t>
+            <t id="118">Secteur</t>
+            <t id="119">Charge</t>
+
+            <!-- section labels -->
+            <t id="121">Filtres</t>
+            <t id="122">Vaisseaux</t>
+
+            <!-- completed-trade column headers -->
+            <t id="130">Acheté</t>
+            <t id="131">Vendu</t>
+            <t id="132">Bénéfice</t>
+            <t id="133">Durée</t>
+
+            <!-- menu -->
+            <t id="1000">Analyseur de commerce des vaisseaux</t>
+            <t id="1001">Mode d'analyse</t>
+            <t id="1002">Vue</t>
+            <t id="1003">Station de rattachement</t>
+            <t id="1004">Classe de vaisseau</t>
+            <t id="1005">Type de cargaison</t>
+            <t id="1006">Échanges internes</t>
+            <t id="1007">Trier par</t>
+            <t id="1008">Nom</t>
+            <t id="1009">Bénéfice</t>
+            <t id="1010">Top</t>
+            <t id="1011">Ordre inversé</t>
+            <t id="1012">Actualiser</t>
+            <t id="1014">Analyseur de commerce</t>
+            <t id="1015">Aucune donnée commerciale. Le jeu n'enregistre les journaux commerciaux que pour les vaisseaux pilotés par une IA.</t>
+            <t id="1016">Aucun résultat pour les filtres actuels.</t>
+            <t id="1017">Sélectionnez un vaisseau à gauche pour afficher ses détails.</t>
+            <t id="1018">Achat</t>
+            <t id="1019">Vente</t>
+            <t id="1020">Conteneur</t>
+            <t id="1021">Solide</t>
+            <t id="1022">Liquide</t>
+            <t id="1023">Gaz</t>
+            <t id="1025">Moyenne</t>
+            <t id="1026">Meilleur</t>
+            <t id="1029">min</t>
+            <t id="1030">h</t>
+
+            <!-- Options page -->
+            <t id="90101">Fenêtre d'historique \(0 = tout\)</t>
+            <t id="90102">Inclure les échanges internes par défaut</t>
+
+            <!-- Section: Debug (90900) -->
+            <t id="90900">Débogage</t>
+            <t id="90910">Niveau de débogage</t>
+            <t id="90911">Aucun</t>
+            <t id="90912">Débogage</t>
+            <t id="90913">Trace</t>
+        </page>
+    </add>
+</diff>

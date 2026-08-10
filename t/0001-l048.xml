@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ships Trade Analyzer - Polish text, page 1972092439 -->
+<diff>
+    <add sel="/language">
+        <page id="1972092439" title="Analizator handlu statków" descr="" voice="no">
+            <!-- mod identity -->
+            <t id="1">Analizator handlu statków</t>
+            <t id="2">Analizuje dziennik handlowy twoich statków w grze: zysk na statek i na towar, tabele transakcji i zakończonych transakcji handlowych, wykresy zysków, zestawienia towarów oraz statystyki wykorzystania ładowni.</t>
+
+            <!-- dropdown items -->
+            <t id="100">Wg transakcji</t>
+            <t id="101">Wg wymian</t>
+            <t id="102">Szczegóły</t>
+            <t id="103">Zysk w czasie</t>
+            <t id="104">Statki wg towarów</t>
+            <t id="105">Towary wg statków</t>
+            <t id="106">Wypełnienie ładowni</t>
+            <t id="107">Dowolna</t>
+            <t id="108">Brak</t>
+            <t id="109">Wszystkie</t>
+
+            <!-- column headers -->
+            <t id="110">Czas</t>
+            <t id="111">Operacja</t>
+            <t id="112">Towar</t>
+            <t id="113">Cena</t>
+            <t id="114">Ilość</t>
+            <t id="115">Razem</t>
+            <t id="116">Szac. zysk</t>
+            <t id="117">Stacja</t>
+            <t id="118">Sektor</t>
+            <t id="119">Ładunek</t>
+
+            <!-- section labels -->
+            <t id="121">Filtry</t>
+            <t id="122">Statki</t>
+
+            <!-- completed-trade column headers -->
+            <t id="130">Kupiono</t>
+            <t id="131">Sprzedano</t>
+            <t id="132">Zysk</t>
+            <t id="133">Czas trwania</t>
+
+            <!-- menu -->
+            <t id="1000">Analizator handlu statków</t>
+            <t id="1001">Tryb analizy</t>
+            <t id="1002">Widok</t>
+            <t id="1003">Stacja nadrzędna</t>
+            <t id="1004">Klasa statku</t>
+            <t id="1005">Typ ładunku</t>
+            <t id="1006">Wymiany wewnętrzne</t>
+            <t id="1007">Sortuj wg</t>
+            <t id="1008">Nazwa</t>
+            <t id="1009">Zysk</t>
+            <t id="1010">Top</t>
+            <t id="1011">Odwrotna kolejność</t>
+            <t id="1012">Odśwież</t>
+            <t id="1014">Analizator handlu</t>
+            <t id="1015">Nie znaleziono danych handlowych. Gra zapisuje dzienniki handlowe tylko dla statków prowadzonych przez pilotów SI.</t>
+            <t id="1016">Nic nie pasuje do bieżących filtrów.</t>
+            <t id="1017">Wybierz statek po lewej, aby zobaczyć szczegóły.</t>
+            <t id="1018">Kupno</t>
+            <t id="1019">Sprzedaż</t>
+            <t id="1020">Kontener</t>
+            <t id="1021">Stałe</t>
+            <t id="1022">Ciekłe</t>
+            <t id="1023">Gaz</t>
+            <t id="1025">Średnia</t>
+            <t id="1026">Najlepszy</t>
+            <t id="1029">min</t>
+            <t id="1030">h</t>
+
+            <!-- Options page -->
+            <t id="90101">Okno historii \(0 = wszystko\)</t>
+            <t id="90102">Domyślnie uwzględniaj wymiany wewnętrzne</t>
+
+            <!-- Section: Debug (90900) -->
+            <t id="90900">Debugowanie</t>
+            <t id="90910">Poziom debugowania</t>
+            <t id="90911">Brak</t>
+            <t id="90912">Debugowanie</t>
+            <t id="90913">Ślad</t>
+        </page>
+    </add>
+</diff>

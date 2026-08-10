@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ships Trade Analyzer - German text, page 1972092439 -->
+<diff>
+    <add sel="/language">
+        <page id="1972092439" title="Schiffs-Handelsanalyse" descr="" voice="no">
+            <!-- mod identity -->
+            <t id="1">Schiffs-Handelsanalyse</t>
+            <t id="2">Analysiert das Handelsprotokoll deiner Schiffe im Spiel: Gewinn pro Schiff und pro Ware, Transaktions- und Handelstabellen, Gewinndiagramme, Warenaufschlüsselungen und Frachtauslastungsstatistiken.</t>
+
+            <!-- dropdown items -->
+            <t id="100">Nach Transaktionen</t>
+            <t id="101">Nach Handelsgeschäften</t>
+            <t id="102">Details</t>
+            <t id="103">Gewinn im Zeitverlauf</t>
+            <t id="104">Schiffe nach Waren</t>
+            <t id="105">Waren nach Schiffen</t>
+            <t id="106">Frachtauslastung</t>
+            <t id="107">Beliebig</t>
+            <t id="108">Keine</t>
+            <t id="109">Alle</t>
+
+            <!-- column headers -->
+            <t id="110">Zeit</t>
+            <t id="111">Vorgang</t>
+            <t id="112">Ware</t>
+            <t id="113">Preis</t>
+            <t id="114">Menge</t>
+            <t id="115">Gesamt</t>
+            <t id="116">Gesch. Gewinn</t>
+            <t id="117">Station</t>
+            <t id="118">Sektor</t>
+            <t id="119">Auslastung</t>
+
+            <!-- section labels -->
+            <t id="121">Filter</t>
+            <t id="122">Schiffe</t>
+
+            <!-- completed-trade column headers -->
+            <t id="130">Gekauft</t>
+            <t id="131">Verkauft</t>
+            <t id="132">Gewinn</t>
+            <t id="133">Dauer</t>
+
+            <!-- menu -->
+            <t id="1000">Schiffs-Handelsanalyse</t>
+            <t id="1001">Analysemodus</t>
+            <t id="1002">Ansicht</t>
+            <t id="1003">Übergeordnete Station</t>
+            <t id="1004">Schiffsklasse</t>
+            <t id="1005">Frachttyp</t>
+            <t id="1006">Interne Handelsgeschäfte</t>
+            <t id="1007">Sortieren nach</t>
+            <t id="1008">Name</t>
+            <t id="1009">Gewinn</t>
+            <t id="1010">Top</t>
+            <t id="1011">Umgekehrte Reihenfolge</t>
+            <t id="1012">Aktualisieren</t>
+            <t id="1014">Handelsanalyse</t>
+            <t id="1015">Keine Handelsdaten gefunden. Das Spiel zeichnet Handelsprotokolle nur für Schiffe mit KI-Piloten auf.</t>
+            <t id="1016">Nichts entspricht den aktuellen Filtern.</t>
+            <t id="1017">Wähle links ein Schiff, um seine Details zu sehen.</t>
+            <t id="1018">Kauf</t>
+            <t id="1019">Verkauf</t>
+            <t id="1020">Container</t>
+            <t id="1021">Fest</t>
+            <t id="1022">Flüssig</t>
+            <t id="1023">Gas</t>
+            <t id="1025">Durchschnitt</t>
+            <t id="1026">Bestwert</t>
+            <t id="1029">Min</t>
+            <t id="1030">Std</t>
+
+            <!-- Options page -->
+            <t id="90101">Verlaufsfenster \(0 = alles\)</t>
+            <t id="90102">Interne Handelsgeschäfte standardmäßig einbeziehen</t>
+
+            <!-- Section: Debug (90900) -->
+            <t id="90900">Debug</t>
+            <t id="90910">Debug-Stufe</t>
+            <t id="90911">Keine</t>
+            <t id="90912">Debug</t>
+            <t id="90913">Ablaufverfolgung</t>
+        </page>
+    </add>
+</diff>

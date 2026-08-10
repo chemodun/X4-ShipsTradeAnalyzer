@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ships Trade Analyzer - Portuguese text, page 1972092439 -->
+<diff>
+    <add sel="/language">
+        <page id="1972092439" title="Analisador de comércio de naves" descr="" voice="no">
+            <!-- mod identity -->
+            <t id="1">Analisador de comércio de naves</t>
+            <t id="2">Analisa o registro comercial das suas naves no jogo: lucro por nave e por mercadoria, tabelas de transações e de negócios concluídos, gráficos de lucro, detalhamentos por mercadoria e estatísticas de carga.</t>
+
+            <!-- dropdown items -->
+            <t id="100">Por transações</t>
+            <t id="101">Por negócios</t>
+            <t id="102">Detalhes</t>
+            <t id="103">Lucro ao longo do tempo</t>
+            <t id="104">Naves por mercadorias</t>
+            <t id="105">Mercadorias por naves</t>
+            <t id="106">Ocupação de carga</t>
+            <t id="107">Qualquer</t>
+            <t id="108">Nenhuma</t>
+            <t id="109">Todas</t>
+
+            <!-- column headers -->
+            <t id="110">Tempo</t>
+            <t id="111">Operação</t>
+            <t id="112">Mercadoria</t>
+            <t id="113">Preço</t>
+            <t id="114">Quantidade</t>
+            <t id="115">Total</t>
+            <t id="116">Lucro est.</t>
+            <t id="117">Estação</t>
+            <t id="118">Setor</t>
+            <t id="119">Carga</t>
+
+            <!-- section labels -->
+            <t id="121">Filtros</t>
+            <t id="122">Naves</t>
+
+            <!-- completed-trade column headers -->
+            <t id="130">Comprado</t>
+            <t id="131">Vendido</t>
+            <t id="132">Lucro</t>
+            <t id="133">Duração</t>
+
+            <!-- menu -->
+            <t id="1000">Analisador de comércio de naves</t>
+            <t id="1001">Modo de análise</t>
+            <t id="1002">Visualização</t>
+            <t id="1003">Estação principal</t>
+            <t id="1004">Classe da nave</t>
+            <t id="1005">Tipo de carga</t>
+            <t id="1006">Negócios internos</t>
+            <t id="1007">Ordenar por</t>
+            <t id="1008">Nome</t>
+            <t id="1009">Lucro</t>
+            <t id="1010">Top</t>
+            <t id="1011">Ordem inversa</t>
+            <t id="1012">Atualizar</t>
+            <t id="1014">Analisador de comércio</t>
+            <t id="1015">Nenhum dado comercial encontrado. O jogo só registra os logs comerciais de naves pilotadas por IA.</t>
+            <t id="1016">Nada corresponde aos filtros atuais.</t>
+            <t id="1017">Selecione uma nave à esquerda para ver seus detalhes.</t>
+            <t id="1018">Compra</t>
+            <t id="1019">Venda</t>
+            <t id="1020">Contêiner</t>
+            <t id="1021">Sólido</t>
+            <t id="1022">Líquido</t>
+            <t id="1023">Gás</t>
+            <t id="1025">Média</t>
+            <t id="1026">Melhor</t>
+            <t id="1029">min</t>
+            <t id="1030">h</t>
+
+            <!-- Options page -->
+            <t id="90101">Janela de histórico \(0 = tudo\)</t>
+            <t id="90102">Incluir negócios internos por padrão</t>
+
+            <!-- Section: Debug (90900) -->
+            <t id="90900">Depuração</t>
+            <t id="90910">Nível de depuração</t>
+            <t id="90911">Nenhum</t>
+            <t id="90912">Depuração</t>
+            <t id="90913">Rastreamento</t>
+        </page>
+    </add>
+</diff>

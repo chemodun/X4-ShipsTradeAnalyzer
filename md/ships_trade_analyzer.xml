@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mdscript name="Ships_Trade_Analyzer"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:noNamespaceSchemaLocation="../../libraries/md.xsd">
+  <!--
+    Ships Trade Analyzer - Options and interaction-menu integration.
+
+    Config keys, all directly under player.entity.$ShipsTradeAnalyzerConfig:
+      $historyHours          - int 0..240 (slider): how far back to read the
+                               trade log; 0 means the whole recorded history
+      $includeInternalTrades - bool (checkbox): default state of the menu's
+                               internal-trade filter
+      $debugLevel            - string: 'none' | 'debug' | 'trace'
+
+    There is no collection timer and no stored data: the trade log is the
+    engine's own, read on demand by ui/sta_data.lua.
+  -->
+
+  <cues>
+
+    <cue name="Init" instantiate="false" version="1">
+      <actions>
+        <set_value name="$debugLevelIndexes" exact="['none', 'debug', 'trace']" />
+      </actions>
+      <cues>
+
+        <library name="STA_Defaults" purpose="include_actions">
+          <actions>
+            <set_value name="$cfg" exact="table[
+              $historyHours          = 0,
+              $includeInternalTrades = true,
+              $debugLevel            = 'none',
+            ]" />
+          </actions>
+        </library>
+
+        <!-- Sets $debugChance (100 unless debugLevel is 'none') and $traceChance
+             (100 only at 'trace'). Caller must remove_value both when done. -->
+        <library name="STA_ReadDebugChances" purpose="include_actions">
+          <actions>
+            <set_value name="$staDebugLevel" exact="if @player.entity.$ShipsTradeAnalyzerConfig.$debugLevel != null
+              then player.entity.$ShipsTradeAnalyzerConfig.$debugLevel else 'none'" />
+            <set_value name="$debugChance" exact="if @$staDebugLevel == null or @$staDebugLevel == 'none' then 0 else 100" />
+            <set_value name="$traceChance" exact="if @$staDebugLevel == 'trace' then 100 else 0" />
+            <remove_value name="$staDebugLevel" />
+          </actions>
+        </library>
+
+        <!-- =============== Options menu registration =============== -->
+        <cue name="STA_Register_Menu" instantiate="true" version="1">
+          <conditions>
+            <event_cue_signalled cue="md.Simple_Menu_API.Reloaded" />
+          </conditions>
+          <actions>
+            <include_actions ref="STA_Defaults" />
+            <do_if value="@player.entity.$ShipsTradeAnalyzerConfig == null">
+              <set_value name="player.entity.$ShipsTradeAnalyzerConfig" exact="$cfg" />
+            </do_if>
+            <do_else>
+              <!-- Back-fill any key missing from an older save -->
+              <do_for_each name="$k" in="$cfg">
+                <do_if value="@player.entity.$ShipsTradeAnalyzerConfig.{$k} == null">
+                  <set_value name="player.entity.$ShipsTradeAnalyzerConfig.{$k}" exact="$cfg.{$k}" />
+                </do_if>
+              </do_for_each>
+            </do_else>
+            <remove_value name="$cfg" />
+
+            <signal_cue_instantly cue="md.Simple_Menu_API.Register_Options_Menu"
+              param="table[
+                $id      = 'ships_trade_analyzer_options_menu',
+                $columns = 12,
+                $title   = {1972092439, 1},
+                $onOpen  = STA_Options_Menu,
+              ]" />
+          </actions>
+        </cue>
+
+        <!-- =============== Options menu open callback =============== -->
+        <cue name="STA_Options_Menu" instantiate="true" version="1">
+          <conditions>
+            <event_cue_signalled />
+          </conditions>
+          <actions>
+            <do_if value="@player.entity.$ShipsTradeAnalyzerConfig != null">
+              <set_value name="$cfg" exact="player.entity.$ShipsTradeAnalyzerConfig" />
+
+              <run_actions ref="md.Options_Helper.Add_Title_Row">
+                <param name="title" value="{1972092439, 1}" />
+              </run_actions>
+
+              <include_actions ref="md.Options_Helper.Add_Empty_Row" />
+
+              <!-- 0 reads the whole recorded history; anything else bounds the
+                   scan, which is what keeps a very long save responsive. -->
+              <run_actions ref="md.Options_Helper.Add_Slider">
+                <param name="id" value="'historyHours'" />
+                <param name="min" value="0" />
+                <param name="max" value="240" />
+                <param name="step" value="12" />
+                <param name="text" value="{1972092439, 90101}" />
+                <param name="suffix" value="' h'" />
+                <param name="colSpan" value="8" />
+                <param name="textColSpan" value="4" />
+                <param name="data" value="$cfg" />
+                <param name="handle" value="STA_HandleSlider" />
+              </run_actions>
+
+              <run_actions ref="md.Options_Helper.Add_Checkbox">
+                <param name="id" value="'includeInternalTrades'" />
+                <param name="col" value="1" />
+                <param name="textColSpan" value="11" />
+                <param name="text" value="{1972092439, 90102}" />
+                <param name="data" value="$cfg" />
+                <param name="handle" value="STA_HandleCheckbox" />
+              </run_actions>
+
+              <!-- Section: Debug -->
+              <include_actions ref="md.Options_Helper.Add_Empty_Row" />
+              <run_actions ref="md.Options_Helper.Add_Title_Row">
+                <param name="title" value="{1972092439, 90900}" />
+              </run_actions>
+
+              <set_value name="$debugLevelOptions" exact="[
+                table[$text = {1972092439, 90911}, $value = 'none'],
+                table[$text = {1972092439, 90912}, $value = 'debug'],
+                table[$text = {1972092439, 90913}, $value = 'trace']
+              ]" />
+              <set_value name="$debugLevelCurrentIndex"
+                exact="$debugLevelIndexes.indexof.{@$cfg.$debugLevel}" />
+              <do_if value="$debugLevelCurrentIndex == 0">
+                <set_value name="$debugLevelCurrentIndex" exact="1" />
+              </do_if>
+
+              <run_actions ref="md.Options_Helper.Add_Dropdown">
+                <param name="id" value="'debugLevel'" />
+                <param name="options" value="$debugLevelOptions" />
+                <param name="currentIndex" value="$debugLevelCurrentIndex" />
+                <param name="col" value="1" />
+                <param name="textColSpan" value="6" />
+                <param name="text" value="{1972092439, 90910}" />
+                <param name="dropdownColSpan" value="6" />
+                <param name="handle" value="STA_HandleDropdown" />
+              </run_actions>
+              <remove_value name="$debugLevelOptions" />
+              <remove_value name="$debugLevelCurrentIndex" />
+
+              <remove_value name="$cfg" />
+            </do_if>
+          </actions>
+        </cue>
+
+        <!-- =============== Options handlers =============== -->
+        <cue name="STA_HandleCheckbox" instantiate="true" version="1">
+          <conditions>
+            <event_cue_signalled />
+          </conditions>
+          <actions>
+            <set_value name="$resultTable" exact="player.entity.$ShipsTradeAnalyzerConfig" />
+            <include_actions ref="md.Options_Helper.Process_Checkbox_Changed" />
+            <remove_value name="$resultTable" />
+          </actions>
+        </cue>
+
+        <cue name="STA_HandleSlider" instantiate="true" version="1">
+          <conditions>
+            <event_cue_signalled />
+          </conditions>
+          <actions>
+            <set_value name="$resultTable" exact="player.entity.$ShipsTradeAnalyzerConfig" />
+            <include_actions ref="md.Options_Helper.Process_Slider_Changed" />
+            <remove_value name="$resultTable" />
+          </actions>
+        </cue>
+
+        <cue name="STA_HandleDropdown" instantiate="true" version="1">
+          <conditions>
+            <event_cue_signalled />
+          </conditions>
+          <actions>
+            <set_value name="$resultTable" exact="player.entity.$ShipsTradeAnalyzerConfig" />
+            <include_actions ref="md.Options_Helper.Process_Dropdown_Changed" />
+            <remove_value name="$resultTable" />
+            <do_if value="event.param.$echo.$valueId == '$debugLevel'">
+              <raise_lua_event name="'ShipsTradeAnalyzer.DebugLevelChanged'"
+                param="player.entity.$ShipsTradeAnalyzerConfig.$debugLevel" />
+            </do_if>
+          </actions>
+        </cue>
+
+        <!-- =============== Interaction menu entry ===============
+             Re-registered on every interact menu open, per Interact_Menu_API
+             convention. A station opens the analyzer filtered to its own
+             subordinates; a ship opens it preselected. -->
+        <cue name="STA_Add_Interact_Action" instantiate="true" version="1">
+          <conditions>
+            <event_cue_signalled cue="md.Interact_Menu_API.Get_Actions" />
+          </conditions>
+          <actions>
+            <include_actions ref="STA_ReadDebugChances" />
+            <set_value name="$target" exact="event.param.$object" />
+            <do_if value="$target != null and $target.trueowner == faction.player
+              and ($target.isclass.{class.ship} or $target.isclass.{class.station})">
+              <debug_text text="'[STA]: STA_Add_Interact_Action adding action for %s.'.[$target.debugname]"
+                chance="$traceChance" filter="scripts" />
+              <signal_cue_instantly cue="md.Interact_Menu_API.Add_Action"
+                param="table[
+                  $id       = 'ships_trade_analyzer_open',
+                  $text     = {1972092439, 1014},
+                  $section  = 'main',
+                  $callback = STA_Interact_Callback,
+                ]" />
+            </do_if>
+            <remove_value name="$target" />
+            <remove_value name="$debugChance" />
+            <remove_value name="$traceChance" />
+          </actions>
+        </cue>
+
+        <cue name="STA_Interact_Callback" instantiate="true" version="1">
+          <conditions>
+            <event_cue_signalled />
+          </conditions>
+          <actions>
+            <include_actions ref="STA_ReadDebugChances" />
+            <debug_text text="'[STA]: STA_Interact_Callback opening menu for %s.'.[event.param.$object.debugname]"
+              chance="$debugChance" filter="scripts" />
+            <raise_lua_event name="'ShipsTradeAnalyzer.OpenMenu'" param="event.param.$object" />
+            <remove_value name="$debugChance" />
+            <remove_value name="$traceChance" />
+          </actions>
+        </cue>
+
+      </cues>
+    </cue>
+
+  </cues>
+</mdscript>

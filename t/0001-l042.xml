@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ships Trade Analyzer - Czech text, page 1972092439 -->
+<diff>
+    <add sel="/language">
+        <page id="1972092439" title="Analyzátor obchodu lodí" descr="" voice="no">
+            <!-- mod identity -->
+            <t id="1">Analyzátor obchodu lodí</t>
+            <t id="2">Analyzuje obchodní záznamy vašich lodí přímo ve hře: zisk na loď a na zboží, tabulky transakcí a dokončených obchodů, grafy zisku, rozpady podle zboží a statistiky vytížení nákladového prostoru.</t>
+
+            <!-- dropdown items -->
+            <t id="100">Podle transakcí</t>
+            <t id="101">Podle obchodů</t>
+            <t id="102">Podrobnosti</t>
+            <t id="103">Zisk v čase</t>
+            <t id="104">Lodě podle zboží</t>
+            <t id="105">Zboží podle lodí</t>
+            <t id="106">Vytížení nákladu</t>
+            <t id="107">Libovolná</t>
+            <t id="108">Žádná</t>
+            <t id="109">Vše</t>
+
+            <!-- column headers -->
+            <t id="110">Čas</t>
+            <t id="111">Operace</t>
+            <t id="112">Zboží</t>
+            <t id="113">Cena</t>
+            <t id="114">Množství</t>
+            <t id="115">Celkem</t>
+            <t id="116">Odh. zisk</t>
+            <t id="117">Stanice</t>
+            <t id="118">Sektor</t>
+            <t id="119">Vytížení</t>
+
+            <!-- section labels -->
+            <t id="121">Filtry</t>
+            <t id="122">Lodě</t>
+
+            <!-- completed-trade column headers -->
+            <t id="130">Nakoupeno</t>
+            <t id="131">Prodáno</t>
+            <t id="132">Zisk</t>
+            <t id="133">Trvání</t>
+
+            <!-- menu -->
+            <t id="1000">Analyzátor obchodu lodí</t>
+            <t id="1001">Režim analýzy</t>
+            <t id="1002">Zobrazení</t>
+            <t id="1003">Nadřazená stanice</t>
+            <t id="1004">Třída lodi</t>
+            <t id="1005">Typ nákladu</t>
+            <t id="1006">Interní obchody</t>
+            <t id="1007">Řadit podle</t>
+            <t id="1008">Jméno</t>
+            <t id="1009">Zisk</t>
+            <t id="1010">Top</t>
+            <t id="1011">Obrácené pořadí</t>
+            <t id="1012">Obnovit</t>
+            <t id="1014">Analyzátor obchodu</t>
+            <t id="1015">Nebyla nalezena žádná obchodní data. Hra zaznamenává obchodní záznamy pouze pro lodě řízené AI piloty.</t>
+            <t id="1016">Aktuálním filtrům nic neodpovídá.</t>
+            <t id="1017">Vyberte loď vlevo pro zobrazení podrobností.</t>
+            <t id="1018">Nákup</t>
+            <t id="1019">Prodej</t>
+            <t id="1020">Kontejner</t>
+            <t id="1021">Pevné</t>
+            <t id="1022">Kapalné</t>
+            <t id="1023">Plyn</t>
+            <t id="1025">Průměr</t>
+            <t id="1026">Nejlepší</t>
+            <t id="1029">min</t>
+            <t id="1030">h</t>
+
+            <!-- Options page -->
+            <t id="90101">Okno historie \(0 = vše\)</t>
+            <t id="90102">Ve výchozím stavu zahrnout interní obchody</t>
+
+            <!-- Section: Debug (90900) -->
+            <t id="90900">Ladění</t>
+            <t id="90910">Úroveň ladění</t>
+            <t id="90911">Žádná</t>
+            <t id="90912">Ladění</t>
+            <t id="90913">Trasování</t>
+        </page>
+    </add>
+</diff>
