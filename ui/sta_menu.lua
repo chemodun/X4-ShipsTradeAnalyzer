@@ -23,17 +23,18 @@ local menu = {
 }
 
 local config = {
-  infoLayer      = 4,
-  leftPanelShare = 0.34,
+  infoLayer        = 4,
+  -- 0.34 cut by 30% in favour of the right panel.
+  leftPanelShare   = 0.238,
   -- A table cannot have more than 13 columns, so the bar of the ranked views is
   -- spread over this many tables side by side: barTables * 13 - 2 segments.
-  maxTableCols   = 13,
-  barTables      = 3,
-  legendPairs    = 4,
-  maxGraphShips  = 8,
-  maxTotalPoints = 300,
-  maxYRoundTo    = 1000,
-  topLimits      = { 10, 25, 50, 100 },
+  maxTableCols     = 13,
+  barTables        = 3,
+  legendPairs      = 4,
+  maxGraphShips    = 8,
+  maxTotalPoints   = 300,
+  maxYRoundTo      = 1000,
+  topLimits        = { 10, 25, 50, 100 },
   point = { type = "square", size = 5 },
   line  = { type = "normal", size = 2 },
   seriesColors = {
@@ -466,13 +467,16 @@ local function createCenteredCheckBox(cell, checked)
 end
 
 function menu.createLeftPanel(x, width)
-  local leftTable = menu.infoFrame:addTable(2, {
+  -- Four equal columns serve both halves of the panel: a control row is a label
+  -- in column 1 and the control spanning 2-4, a ship row is the name spanning
+  -- 1-3 and its profit in column 4.
+  local leftTable = menu.infoFrame:addTable(4, {
     tabOrder = 1, width = width, x = x, y = Helper.frameBorder, borderEnabled = true,
     backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
   })
 
   local row = leftTable:addRow(false, { fixed = true, bgColor = Color["row_title_background"] })
-  row[1]:setColSpan(2):createText(ReadText(PAGE, 1000), Helper.titleTextProperties)
+  row[1]:setColSpan(4):createText(ReadText(PAGE, 1000), Helper.titleTextProperties)
 
   -- Analysis mode
   row = leftTable:addRow(true, { fixed = true })
@@ -481,7 +485,7 @@ function menu.createLeftPanel(x, width)
   for _, m in ipairs(modes) do
     modeEntries[#modeEntries + 1] = { id = m.id, text = ReadText(PAGE, m.text) }
   end
-  row[2]:createDropDown(dropdownOptions(modeEntries), { startOption = menu.mode, height = Helper.standardButtonHeight })
+  row[2]:setColSpan(3):createDropDown(dropdownOptions(modeEntries), { startOption = menu.mode, height = Helper.standardButtonHeight })
   row[2].handlers.onDropDownConfirmed = menu.selectMode
 
   -- View
@@ -491,12 +495,12 @@ function menu.createLeftPanel(x, width)
   for _, v in ipairs(views) do
     viewEntries[#viewEntries + 1] = { id = v.id, text = ReadText(PAGE, v.text) }
   end
-  row[2]:createDropDown(dropdownOptions(viewEntries), { startOption = menu.view, height = Helper.standardButtonHeight })
+  row[2]:setColSpan(3):createDropDown(dropdownOptions(viewEntries), { startOption = menu.view, height = Helper.standardButtonHeight })
   row[2].handlers.onDropDownConfirmed = menu.selectView
 
   -- Filters
   row = leftTable:addRow(false, { fixed = true, bgColor = Color["row_title_background"] })
-  row[1]:setColSpan(2):createText(ReadText(PAGE, 121), Helper.titleTextProperties)
+  row[1]:setColSpan(4):createText(ReadText(PAGE, 121), Helper.titleTextProperties)
 
   local stationEntries = {
     { id = "any",  text = ReadText(PAGE, 107) },
@@ -507,7 +511,7 @@ function menu.createLeftPanel(x, width)
   end
   row = leftTable:addRow(true, { fixed = true })
   row[1]:createText(ReadText(PAGE, 1003), { halign = "left" })
-  row[2]:createDropDown(dropdownOptions(stationEntries), { startOption = menu.filter.parentStation, height = Helper.standardButtonHeight })
+  row[2]:setColSpan(3):createDropDown(dropdownOptions(stationEntries), { startOption = menu.filter.parentStation, height = Helper.standardButtonHeight })
   row[2].handlers.onDropDownConfirmed = menu.selectParentStation
 
   local classEntries = { { id = "all", text = ReadText(PAGE, 109) } }
@@ -516,7 +520,7 @@ function menu.createLeftPanel(x, width)
   end
   row = leftTable:addRow(true, { fixed = true })
   row[1]:createText(ReadText(PAGE, 1004), { halign = "left" })
-  row[2]:createDropDown(dropdownOptions(classEntries), { startOption = menu.filter.shipClass, height = Helper.standardButtonHeight })
+  row[2]:setColSpan(3):createDropDown(dropdownOptions(classEntries), { startOption = menu.filter.shipClass, height = Helper.standardButtonHeight })
   row[2].handlers.onDropDownConfirmed = menu.selectShipClass
 
   local cargoEntries = {}
@@ -525,12 +529,12 @@ function menu.createLeftPanel(x, width)
   end
   row = leftTable:addRow(true, { fixed = true })
   row[1]:createText(ReadText(PAGE, 1005), { halign = "left" })
-  row[2]:createDropDown(dropdownOptions(cargoEntries), { startOption = menu.filter.cargoType, height = Helper.standardButtonHeight })
+  row[2]:setColSpan(3):createDropDown(dropdownOptions(cargoEntries), { startOption = menu.filter.cargoType, height = Helper.standardButtonHeight })
   row[2].handlers.onDropDownConfirmed = menu.selectCargoType
 
   row = leftTable:addRow(true, { fixed = true })
   row[1]:createText(ReadText(PAGE, 1006), { halign = "left" })
-  createCenteredCheckBox(row[2], menu.filter.internalTrades)
+  createCenteredCheckBox(row[2]:setColSpan(3), menu.filter.internalTrades)
   row[2].handlers.onClick = function(_, checked) return menu.toggleInternal(checked) end
 
   row = leftTable:addRow(true, { fixed = true })
@@ -539,7 +543,7 @@ function menu.createLeftPanel(x, width)
     { id = "profit", text = ReadText(PAGE, 1009) },
     { id = "name",   text = ReadText(PAGE, 1008) },
   }
-  row[2]:createDropDown(dropdownOptions(sortEntries), { startOption = menu.sortBy, height = Helper.standardButtonHeight })
+  row[2]:setColSpan(3):createDropDown(dropdownOptions(sortEntries), { startOption = menu.sortBy, height = Helper.standardButtonHeight })
   row[2].handlers.onDropDownConfirmed = menu.selectSort
 
   if isRanked(menu.view) then
@@ -549,17 +553,17 @@ function menu.createLeftPanel(x, width)
     for _, limit in ipairs(config.topLimits) do
       topEntries[#topEntries + 1] = { id = tostring(limit), text = tostring(limit) }
     end
-    row[2]:createDropDown(dropdownOptions(topEntries), { startOption = tostring(menu.topLimit), height = Helper.standardButtonHeight })
+    row[2]:setColSpan(3):createDropDown(dropdownOptions(topEntries), { startOption = tostring(menu.topLimit), height = Helper.standardButtonHeight })
     row[2].handlers.onDropDownConfirmed = menu.selectTop
 
     row = leftTable:addRow(true, { fixed = true })
     row[1]:createText(ReadText(PAGE, 1011), { halign = "left" })
-    createCenteredCheckBox(row[2], menu.reverse)
+    createCenteredCheckBox(row[2]:setColSpan(3), menu.reverse)
     row[2].handlers.onClick = function(_, checked) return menu.toggleReverse(checked) end
   end
 
   row = leftTable:addRow(true, { fixed = true })
-  row[1]:setColSpan(2):createButton({}):setText(ReadText(PAGE, 1012), { halign = "center" })
+  row[1]:setColSpan(4):createButton({}):setText(ReadText(PAGE, 1012), { halign = "center" })
   row[1].handlers.onClick = function() return menu.buttonRefresh() end
 
   -- Ship list
@@ -570,14 +574,14 @@ function menu.createLeftPanel(x, width)
   end
 
   row = leftTable:addRow(false, { fixed = true, bgColor = Color["row_title_background"] })
-  row[1]:createText(ReadText(PAGE, 122), Helper.titleTextProperties)
-  row[2]:createText(sta.formatMoney(totalProfit), {
+  row[1]:setColSpan(3):createText(ReadText(PAGE, 122), Helper.titleTextProperties)
+  row[4]:createText(sta.formatMoney(totalProfit), {
     halign = "right", color = (totalProfit >= 0) and Color["text_positive"] or Color["text_negative"],
   })
 
   if #rows == 0 then
     row = leftTable:addRow(false, {})
-    row[1]:setColSpan(2):createText(sta.scanned and ReadText(PAGE, 1016) or ReadText(PAGE, 1015),
+    row[1]:setColSpan(4):createText(sta.scanned and ReadText(PAGE, 1016) or ReadText(PAGE, 1015),
       { halign = "center", wordwrap = true, color = Color["text_inactive"] })
     return
   end
@@ -596,13 +600,13 @@ function menu.createLeftPanel(x, width)
     elseif selected then
       nameColor = Color["text_positive"]
     end
-    row[1]:createText(prefix .. entry.ship.classLetter .. " " .. entry.ship.fullName,
+    row[1]:setColSpan(3):createText(prefix .. entry.ship.classLetter .. " " .. entry.ship.fullName,
       { halign = "left", color = nameColor })
-    row[2]:createText(sta.formatMoney(entry.profit), {
+    row[4]:createText(sta.formatMoney(entry.profit), {
       halign = "right", color = (entry.profit >= 0) and Color["text_positive"] or Color["text_negative"],
     })
     row[1].handlers.onClick = function() return menu.clickShip(idcode) end
-    row[2].handlers.onClick = function() return menu.clickShip(idcode) end
+    row[4].handlers.onClick = function() return menu.clickShip(idcode) end
   end
 end
 
