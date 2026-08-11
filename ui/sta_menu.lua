@@ -182,11 +182,23 @@ end
 
 -- *** mode-agnostic data access ***
 
+-- filteredShips walks every kept transaction of every ship, and the frame asks for
+-- it again on every rebuild - once per row the player moves through the list. The
+-- result depends on nothing but the scan, the mode, the filter and the sort, so it
+-- is cached on exactly those; sta.scanTime in the key retires it on a rescan.
 local function shipRows()
-  if menu.mode == "trades" then
-    return staTrades.filteredShips(menu.filter, menu.sortBy)
+  local f = menu.filter
+  local key = table.concat({ menu.mode, menu.sortBy, f.parentStation, f.shipClass,
+    f.cargoType, tostring(f.internalTrades), tostring(sta.scanTime) }, "|")
+  if menu.shipRowsKey ~= key then
+    if menu.mode == "trades" then
+      menu.shipRowsCache = staTrades.filteredShips(f, menu.sortBy)
+    else
+      menu.shipRowsCache = sta.filteredShips(f, menu.sortBy)
+    end
+    menu.shipRowsKey = key
   end
-  return sta.filteredShips(menu.filter, menu.sortBy)
+  return menu.shipRowsCache
 end
 
 local function rankedRows(groupBy)
@@ -539,6 +551,10 @@ function menu.onRowChanged(_row, rowdata, uitable, _modified, _input, _source)
   local idcode  = rowdata[2]
   local changed = (idcode ~= menu.selectedShip)
   menu.selectedShip = idcode
+  if changed then
+    -- Another ship's history starts at its own first page.
+    menu.page = 1
+  end
 
   if menu.view == "graph" then
     menu.shipShift = GetShiftStartEndRow(uitable)
@@ -688,6 +704,29 @@ end
 -- its last element, keeping it for the mouse-over limbo row.
 local function poolBudget()
   return config.enginePoolRows - 1
+end
+
+-- Bottom edge of a per-ship table: the pager sits below it, always.
+local function detailBottom()
+  return panelBottom() - pagerHeight() - Helper.borderSize
+end
+
+-- A ship's history is unbounded and every row of it costs engine calls whether it
+-- is drawn or not, so the per-ship tables are paged as well - to exactly the rows
+-- that fit, so a page never has to be scrolled. The pager is always drawn, as in
+-- the ranked views, or the row count would depend on the page.
+-- Returns the slice of the current page, counted from the newest item.
+local function detailPage(itemCount, headerHeight)
+  local pitch   = rowPitch()
+  -- getFullHeight puts no border below its last row, so the header owes one.
+  local budget  = detailBottom() - Helper.frameBorder - headerHeight - Helper.borderSize
+  local perPage = math.max(1, math.floor(budget / pitch))
+
+  menu.pageCount = math.max(1, math.ceil(itemCount / perPage))
+  menu.page      = math.max(1, math.min(menu.pageCount, menu.page or 1))
+  sta.traceLog("detailPage: pitch %d, budget %d, %d row(s)/page, %d item(s), page %d/%d.",
+    pitch, budget, perPage, itemCount, menu.page, menu.pageCount)
+  return (menu.page - 1) * perPage + 1, math.min(itemCount, menu.page * perPage)
 end
 
 -- Rows that fit below the header, and the slice of items the current page shows.
@@ -944,8 +983,10 @@ function menu.createLeftPanel(x, width)
     return
   end
 
-  -- Ship rows are plain text rows, so what the engine makes of them is the pitch
-  -- the paged views on the right are laid out with.
+  -- Height of the control block above the list, which is also what the ship rows
+  -- have to fit under. Measured over the control rows only - cheap - while the
+  -- pitch below comes off a single row, since getFullHeight prices every cell of
+  -- every row with a GetTextHeight call.
   local beforeShips = leftTable:getFullHeight()
 
   -- The paged views need every row the pool can spare, so the list gives way to
@@ -954,7 +995,7 @@ function menu.createLeftPanel(x, width)
     row = leftTable:addRow(false, {})
     row[1]:setColSpan(3):createText(ReadText(PAGE, 1032), { halign = "left" })
     row[4]:createText(tostring(#rows), { halign = "right" })
-    menu.measuredPitch = leftTable:getFullHeight() - beforeShips
+    menu.measuredPitch = row:getHeight() + Helper.borderSize
     menu.leftRowCount  = #leftTable.rows
     sta.traceLog("rowPitch: measured %d over 1 count row, %d left panel row(s).",
       menu.measuredPitch, menu.leftRowCount)
@@ -964,11 +1005,13 @@ function menu.createLeftPanel(x, width)
   -- A ship is picked by making its row current, not by clicking a cell, so the
   -- rows carry their idcode as row data and nothing carries a click handler.
   local selectedRow
+  local firstShipRow
   local plottedSet = multi and plottedShips() or {}
   for _, entry in ipairs(rows) do
     local idcode  = entry.ship.idcode
     local plotted = plottedSet[idcode] ~= nil
     row = leftTable:addRow({ "ship", idcode }, { multiSelected = plotted })
+    firstShipRow = firstShipRow or row
     if idcode == menu.selectedShip then
       selectedRow = row.index
     end
@@ -980,9 +1023,9 @@ function menu.createLeftPanel(x, width)
     })
   end
 
-  -- getFullHeight adds a border below every row but the last, so the delta over
-  -- N rows is N whole pitches. Rounded up: a wasted row beats a hidden one.
-  menu.measuredPitch = math.ceil((leftTable:getFullHeight() - beforeShips) / #rows)
+  -- Every ship row is the same plain text, so one of them is the pitch: its own
+  -- height plus the border the table puts below it.
+  menu.measuredPitch = firstShipRow:getHeight() + Helper.borderSize
   -- What the right panel has left of the frame's row pool.
   menu.leftRowCount  = #leftTable.rows
   sta.traceLog("rowPitch: measured %d over %d ship row(s), %d left panel row(s).",
@@ -1049,7 +1092,7 @@ function menu.createTransactionsPanel(x, width)
 
   local t = menu.infoFrame:addTable(10, {
     tabOrder = 2, width = width, x = x, y = Helper.frameBorder, borderEnabled = true,
-    maxVisibleHeight = scrollHeight(Helper.frameBorder),
+    maxVisibleHeight = scrollHeight(Helper.frameBorder, detailBottom()),
     backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
   })
 
@@ -1068,9 +1111,14 @@ function menu.createTransactionsPanel(x, width)
   row[9]:createText(ReadText(PAGE, 116), { halign = "right" })
   row[10]:createText(ReadText(PAGE, 119), { halign = "right" })
 
-  -- Newest first: the recent tail is what anyone opening this actually wants.
-  for i = #transactions, 1, -1 do
-    local tx = transactions[i]
+  -- Measured, not derived: the title row uses titleTextProperties and is taller
+  -- than the header row below it.
+  local first, last = detailPage(#transactions, t:getFullHeight())
+
+  -- Newest first: the recent tail is what anyone opening this actually wants, so
+  -- the first page is the newest slice.
+  for j = first, last do
+    local tx = transactions[#transactions - j + 1]
     row = t:addRow(true, {})
     row[1]:createText(sta.formatAgo(tx.t), { halign = "left" })
     row[2]:createText(ReadText(PAGE, tx.sale and 1019 or 1018),
@@ -1086,6 +1134,8 @@ function menu.createTransactionsPanel(x, width)
       { halign = "right", color = (tx.profit >= 0) and Color["text_positive"] or Color["text_negative"] })
     row[10]:createText(string.format("%.0f%%", tx.load), { halign = "right" })
   end
+
+  createPager(x, width, panelBottom(), 3)
 end
 
 function menu.createTradesPanel(x, width)
@@ -1101,7 +1151,7 @@ function menu.createTradesPanel(x, width)
 
   local t = menu.infoFrame:addTable(8, {
     tabOrder = 2, width = width, x = x, y = Helper.frameBorder, borderEnabled = true,
-    maxVisibleHeight = scrollHeight(Helper.frameBorder),
+    maxVisibleHeight = scrollHeight(Helper.frameBorder, detailBottom()),
     backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
   })
 
@@ -1118,7 +1168,14 @@ function menu.createTradesPanel(x, width)
   row[7]:createText(ReadText(PAGE, 119), { halign = "right" })
   row[8]:createText("", { halign = "right" })
 
-  for i = #trades, 1, -1 do
+  -- Measured, not derived: the title row is taller than the header row below it.
+  -- Expanded trades put their legs on top of the page and are what the height cap
+  -- on this table is still for.
+  local first, last = detailPage(#trades, t:getFullHeight())
+
+  -- Newest first, so the first page is the newest slice.
+  for j = first, last do
+    local i = #trades - j + 1
     local trade = trades[i]
     local key = ship.idcode .. "#" .. i
     row = t:addRow("trade_" .. key, {})
@@ -1148,6 +1205,8 @@ function menu.createTradesPanel(x, width)
       for _, leg in ipairs(trade.sales) do legRow(leg, true) end
     end
   end
+
+  createPager(x, width, panelBottom(), 3)
 end
 
 function menu.createGraphPanel(x, width)

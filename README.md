@@ -10,7 +10,7 @@ Brings the analysis of [X4 Player Ship Trade Analyzer](https://www.nexusmods.com
   - **By Transactions** - every buy and sell is counted on its own. Faster and shows more, but profit is estimated against the ware's average price.
   - **By Trades** - buys are matched against the sells that emptied the hold again, so profit is real. Shows fewer rows, since a ship still carrying cargo has no completed trade yet.
 - **Five views**, both modes:
-  - **Details** - the full table for the selected ship. Time, operation, ware, station, sector, price, quantity, total, estimated profit and cargo load. In By Trades mode each row expands to the individual buy and sell legs behind it.
+  - **Details** - the full table for the selected ship, newest first. Time, operation, ware, station, sector, price, quantity, total, estimated profit and cargo load. In By Trades mode each row expands to the individual buy and sell legs behind it. A busy ship is paged rather than scrolled, so a page always holds exactly what the screen shows.
   - **Profit over Time** - cumulative profit per ship as a line graph, up to 8 ships at once.
   - **Ships by Wares** - ranked bars, one per ship, split by the wares it traded.
   - **Wares by Ships** - the same, transposed: one bar per ware, split by the ships that carried it.
