@@ -17,7 +17,8 @@ Brings the analysis of [X4 Player Ship Trade Analyzer](https://www.nexusmods.com
   - **Cargo Load** - how full each ship actually ran, average and best.
 - **Filters** applying to every view - parent station \(any, none, or one specific station\), ship class \(XL, L, M, S\), cargo type \(container, solid, liquid, gas\) and whether trades between your own stations count.
 - **Sorting** of the ship list by name or by profit, with the filtered total shown above it.
-- **Top N and reverse order** on the ranked views.
+- **Reverse order** on the ranked views, to look at the bottom of the ranking instead of the top.
+- **No cut-off ranking**. The bar views fit as many bars as the screen has room for and page through the rest, so nothing is hidden behind a "top 25". The colour legend sits at the bottom of the screen and scrolls when it is long.
 
 ## Usage
 

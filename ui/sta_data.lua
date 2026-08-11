@@ -476,7 +476,7 @@ end
 -- Profit per (ship, ware) pair, as { key, name, total, parts = { {name, value} } }
 -- rows ready for a stacked bar. groupBy "ship" puts ships on the axis and wares
 -- in the segments; "ware" transposes it.
-function sta.rankedBreakdown(filter, groupBy, limit, reverse)
+function sta.rankedBreakdown(filter, groupBy, reverse)
   local groups = {}
   local order = {}
 
@@ -529,19 +529,12 @@ function sta.rankedBreakdown(filter, groupBy, limit, reverse)
     end
     order = flipped
   end
-  if limit and limit > 0 and #order > limit then
-    local trimmed = {}
-    for i = 1, limit do
-      trimmed[i] = order[i]
-    end
-    order = trimmed
-  end
   return order
 end
 
 -- Cargo load distribution: one entry per ship with its average and best load
 -- percentage across the filtered transactions.
-function sta.cargoLoad(filter, limit, reverse)
+function sta.cargoLoad(filter, reverse)
   local rows = {}
   for _, ship in ipairs(sta.ships) do
     if sta.shipMatches(ship, filter) then
@@ -576,13 +569,6 @@ function sta.cargoLoad(filter, limit, reverse)
       flipped[#flipped + 1] = rows[i]
     end
     rows = flipped
-  end
-  if limit and limit > 0 and #rows > limit then
-    local trimmed = {}
-    for i = 1, limit do
-      trimmed[i] = rows[i]
-    end
-    rows = trimmed
   end
   return rows
 end

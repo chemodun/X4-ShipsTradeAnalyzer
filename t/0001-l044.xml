@@ -52,9 +52,9 @@
             <t id="1007">Sort By</t>
             <t id="1008">Name</t>
             <t id="1009">Profit</t>
-            <t id="1010">Top</t>
             <t id="1011">Reverse Order</t>
             <t id="1012">Refresh</t>
+            <t id="1013">Page</t>
             <t id="1014">Trade Analyzer</t>
             <t id="1015">No trade data found. The game only records trade logs for ships flown by AI pilots.</t>
             <t id="1016">Nothing matches the current filters.</t>

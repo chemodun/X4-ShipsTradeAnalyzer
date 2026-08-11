@@ -10,6 +10,15 @@
 -- The X4 graph widget only draws lines (graphtype is "line" and nothing else
 -- is accepted), so the ware and load breakdowns are horizontal bars built from
 -- background-coloured table cells rather than real column charts.
+--
+-- Those bar views are not meant to scroll - the tables cannot be kept in sync -
+-- so the number of rows that fit is derived from the panel height and the rest is
+-- reached page by page. Only title rows are fixed anywhere: a fixed row cannot be
+-- scrolled away, so a table made entirely of them demands its full height and the
+-- engine drops it rather than scrolling it.
+
+local ffi       = require("ffi")
+local C         = ffi.C
 
 local sta       = require("extensions.ships_trade_analyzer.ui.sta_data")
 local staTrades = require("extensions.ships_trade_analyzer.ui.sta_trades")
@@ -29,12 +38,17 @@ local config = {
   -- A table cannot have more than 13 columns, so the bar of the ranked views is
   -- spread over this many tables side by side: barTables * 13 - 2 segments.
   maxTableCols     = 13,
-  barTables        = 3,
+  barTables        = 2,
+  -- The widget system hands out table rows from a pool that is per frame, not
+  -- per table: past it rows are skipped ("No more table rows available") and the
+  -- tables allocated last are dropped whole. Kept below the observed 225.
+  maxFrameRows     = 210,
   legendPairs      = 4,
+  -- Rows reserved for the legend at the bottom of the panel, whatever it holds.
+  legendRows       = 5,
   maxGraphShips    = 8,
   maxTotalPoints   = 300,
   maxYRoundTo      = 1000,
-  topLimits        = { 10, 25, 50, 100 },
   point = { type = "square", size = 5 },
   line  = { type = "normal", size = 2 },
   seriesColors = {
@@ -98,8 +112,9 @@ local function resetState()
   menu.view       = "details"
   menu.filter     = sta.defaultFilter()
   menu.sortBy     = "profit"
-  menu.topLimit   = 25
   menu.reverse    = false
+  menu.page       = 1
+  menu.pageCount  = 1
   menu.selectedShip = nil
   menu.graphShips = {}
   menu.expanded   = {}
@@ -139,16 +154,16 @@ end
 
 local function rankedRows(groupBy)
   if menu.mode == "trades" then
-    return staTrades.rankedBreakdown(menu.filter, groupBy, menu.topLimit, menu.reverse)
+    return staTrades.rankedBreakdown(menu.filter, groupBy, menu.reverse)
   end
-  return sta.rankedBreakdown(menu.filter, groupBy, menu.topLimit, menu.reverse)
+  return sta.rankedBreakdown(menu.filter, groupBy, menu.reverse)
 end
 
 local function cargoLoadRows()
   if menu.mode == "trades" then
-    return staTrades.cargoLoad(menu.filter, menu.topLimit, menu.reverse)
+    return staTrades.cargoLoad(menu.filter, menu.reverse)
   end
-  return sta.cargoLoad(menu.filter, menu.topLimit, menu.reverse)
+  return sta.cargoLoad(menu.filter, menu.reverse)
 end
 
 -- *** graph helpers (ported from station_ware_history) ***
@@ -341,60 +356,76 @@ function menu.refreshInfoFrame()
   menu.createFrame()
 end
 
+-- Anything that changes what is ranked starts over at the first page.
+local function refreshFromFirstPage()
+  menu.page = 1
+  menu.refreshInfoFrame()
+end
+
 function menu.buttonRefresh()
   sta.scan()
   -- Cached pairings belong to the previous scan.
   menu.expanded = {}
-  menu.refreshInfoFrame()
+  refreshFromFirstPage()
 end
 
 function menu.selectMode(_, id)
   if id ~= menu.mode then
     menu.mode = id
     menu.expanded = {}
-    menu.refreshInfoFrame()
+    refreshFromFirstPage()
   end
 end
 
 function menu.selectView(_, id)
   if id ~= menu.view then
     menu.view = id
-    menu.refreshInfoFrame()
+    refreshFromFirstPage()
   end
 end
 
 function menu.selectParentStation(_, id)
   menu.filter.parentStation = id
-  menu.refreshInfoFrame()
+  refreshFromFirstPage()
 end
 
 function menu.selectShipClass(_, id)
   menu.filter.shipClass = id
-  menu.refreshInfoFrame()
+  refreshFromFirstPage()
 end
 
 function menu.selectCargoType(_, id)
   menu.filter.cargoType = id
-  menu.refreshInfoFrame()
+  refreshFromFirstPage()
 end
 
 function menu.selectSort(_, id)
   menu.sortBy = id
-  menu.refreshInfoFrame()
-end
-
-function menu.selectTop(_, id)
-  menu.topLimit = math.floor(tonumber(id) or 25)
-  menu.refreshInfoFrame()
+  refreshFromFirstPage()
 end
 
 function menu.toggleInternal(checked)
   menu.filter.internalTrades = checked
-  menu.refreshInfoFrame()
+  refreshFromFirstPage()
 end
 
 function menu.toggleReverse(checked)
   menu.reverse = checked
+  refreshFromFirstPage()
+end
+
+function menu.setPage(page)
+  menu.page = math.max(1, math.min(menu.pageCount, math.floor(page)))
+  menu.refreshInfoFrame()
+end
+
+-- Anything that is not a page number just rebuilds the frame, which puts the
+-- box back to "current / total" without needing SetEditBoxText.
+function menu.editPage(text)
+  local page = tonumber(text)
+  if page ~= nil then
+    return menu.setPage(page)
+  end
   menu.refreshInfoFrame()
 end
 
@@ -457,6 +488,172 @@ local function dropdownOptions(entries, currentId)
   return options, currentId
 end
 
+-- *** paged layout ***
+--
+-- The bar views are laid out to fit rather than scrolled, so the panel is measured
+-- up front: one standard text row plus the border below it is the pitch.
+-- Computed the way helper.lua computes a text cell height - the text height of
+-- the standard font, floored at the text widget's minRowHeight - so it follows
+-- the UI scale instead of assuming a size.
+local function rowPitch()
+  -- The left panel is built first and its ship rows are ordinary text rows, so
+  -- the engine's own arithmetic over them beats any estimate made here.
+  if menu.measuredPitch ~= nil then
+    return menu.measuredPitch
+  end
+  local height = Helper.scaleY(Helper.standardTextHeight)
+  local ok, textHeight = pcall(function()
+    local fontsize = Helper.scaleFont(Helper.standardFont, Helper.standardFontSize)
+    return math.ceil(C.GetTextHeight("Ag", Helper.standardFont, math.floor(fontsize), 0))
+  end)
+  if ok and type(textHeight) == "number" then
+    local scaled = Helper.scaleY(Helper.standardTextOffsety) + textHeight
+    if scaled > height then
+      height = scaled
+    end
+  end
+  return height + Helper.borderSize
+end
+
+local function pagerHeight()
+  return Helper.scaleY(Helper.standardButtonHeight) + Helper.borderSize
+end
+
+-- config.legendRows rows are reserved for the legend whatever it holds, so the
+-- number of bar rows above it does not change from page to page. The legend
+-- itself is only as tall as it needs to be, pinned to the bottom of the panel.
+local function legendHeights(entryCount)
+  local pitch    = rowPitch()
+  local rows     = math.max(1, math.ceil(entryCount / config.legendPairs))
+  local reserved = config.legendRows * pitch - Helper.borderSize
+  return reserved, math.min(rows, config.legendRows) * pitch - Helper.borderSize
+end
+
+-- Bottom edge of the panel area: the frame fills the view, so its own border is
+-- the only thing below the tables.
+local function panelBottom()
+  return Helper.viewHeight - Helper.frameBorder
+end
+
+-- A table scrolls only once it is told how tall it may grow. Left at the default
+-- 0, getMaxVisibleHeight falls back to the frame height less the table's y, which
+-- is more than the frame actually leaves free - the engine then rejects the whole
+-- table ("Vertical space left doesn't suffice") instead of scrolling it.
+local function scrollHeight(y, bottom)
+  return (bottom or panelBottom()) - y
+end
+
+-- Bottom edge left to the tables above the legend.
+local function contentBottom(legendEntryCount)
+  local reserved = legendHeights(legendEntryCount)
+  return panelBottom() - reserved - Helper.borderSize
+end
+
+-- Rows that fit below the header, and the slice of items the current page shows.
+-- The pager is always drawn - it only greys out on a single page - so its height
+-- comes off the budget unconditionally and the row count stays page-independent.
+--
+-- Two budgets have to hold: the vertical space, and the frame's row pool, which
+-- the left panel, the title table, the pager and the legend draw on first, and
+-- which every side-by-side table then spends a row of per item. A long ship list
+-- therefore shortens the page instead of silently costing the last table its rows.
+local function pageLayout(itemCount, top, bottom, headerHeight, numTables, legendRows)
+  local pitch   = rowPitch()
+  local budget  = bottom - top - headerHeight - pagerHeight() - Helper.borderSize
+  local perPage = math.max(1, math.floor(budget / pitch))
+
+  -- Off the top: the panel title's own table and the pager, one row each.
+  local free   = config.maxFrameRows - (menu.leftRowCount or 0) - 2 - legendRows
+  local rowCap = math.max(1, math.floor(free / numTables))
+  if rowCap < perPage then
+    perPage = rowCap
+  end
+
+  menu.pageCount = math.max(1, math.ceil(itemCount / perPage))
+  menu.page      = math.max(1, math.min(menu.pageCount, menu.page or 1))
+  sta.traceLog("pageLayout: pitch %d, budget %d, row cap %d, %d row(s)/page, %d item(s), page %d/%d.",
+    pitch, budget, rowCap, perPage, itemCount, menu.page, menu.pageCount)
+  return {
+    first = (menu.page - 1) * perPage + 1,
+    last  = math.min(itemCount, menu.page * perPage),
+  }
+end
+
+-- Vanilla's transaction-log navigator: first / previous / editable "page / total"
+-- / next / last. Sized to its content and centred over the panel.
+local function createPager(x, width, bottom, tabOrder)
+  local buttonWidth = Helper.scaleY(Helper.standardButtonHeight)
+  local pagesWidth  = Helper.scaleX(4 * Helper.standardTextHeight)
+  local ok, textWidth = pcall(function()
+    return C.GetTextWidth(" 9999 / 9999 ", Helper.standardFont,
+      Helper.scaleFont(Helper.standardFont, Helper.standardFontSize))
+  end)
+  if ok and type(textWidth) == "number" then
+    pagesWidth = math.ceil(textWidth) + Helper.scaleX(Helper.standardTextOffsetx)
+  end
+  local tableWidth = 4 * buttonWidth + pagesWidth + 4 * Helper.borderSize
+
+  local t = menu.infoFrame:addTable(5, {
+    tabOrder = tabOrder, width = tableWidth,
+    x = x + math.max(0, math.floor((width - tableWidth) / 2)),
+    y = bottom - Helper.scaleY(Helper.standardButtonHeight),
+    -- Every column is explicit, so there is no variable column to take the
+    -- reserved scrollbar space and helper.lua would log an error over it.
+    reserveScrollBar = false,
+    backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
+  })
+  t:setColWidth(1, buttonWidth, false)
+  t:setColWidth(2, buttonWidth, false)
+  t:setColWidth(3, pagesWidth, false)
+  t:setColWidth(4, buttonWidth, false)
+  t:setColWidth(5, buttonWidth, false)
+
+  -- Interactive widgets need a selectable row, or the whole view is rejected.
+  local row = t:addRow(true, { fixed = true })
+  local hasPrev, hasNext = menu.page > 1, menu.page < menu.pageCount
+  row[1]:createButton({ active = hasPrev, cellBGColor = Color["row_background"] }):setIcon("widget_arrow_skip_left_01")
+  row[1].handlers.onClick = function() return menu.setPage(1) end
+  row[2]:createButton({ active = hasPrev, cellBGColor = Color["row_background"] }):setIcon("widget_arrow_left_01")
+  row[2].handlers.onClick = function() return menu.setPage(menu.page - 1) end
+  local editBoxProperties = {
+    active = menu.pageCount > 1, description = ReadText(PAGE, 1013),
+    height = Helper.standardButtonHeight,
+  }
+  row[3]:createEditBox(editBoxProperties):setText(menu.page .. " / " .. menu.pageCount, { halign = "center" })
+  row[3].handlers.onEditBoxDeactivated = function(_, text) return menu.editPage(text) end
+  row[4]:createButton({ active = hasNext, cellBGColor = Color["row_background"] }):setIcon("widget_arrow_right_01")
+  row[4].handlers.onClick = function() return menu.setPage(menu.page + 1) end
+  row[5]:createButton({ active = hasNext, cellBGColor = Color["row_background"] }):setIcon("widget_arrow_skip_right_01")
+  row[5].handlers.onClick = function() return menu.setPage(menu.pageCount) end
+end
+
+-- Legend for the colours a view assigns, listing every entry of the whole
+-- ranking rather than the current page, so a ware keeps its place while paging.
+-- Rows are selectable because a table only scrolls once it can take the focus.
+local function createLegend(x, width, entries, tabOrder)
+  local _, visible = legendHeights(#entries)
+  local legend = menu.infoFrame:addTable(config.legendPairs * 2, {
+    tabOrder = tabOrder, width = width, x = x,
+    y = panelBottom() - visible,
+    maxVisibleHeight = visible,
+    backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
+  })
+  for i = 1, config.legendPairs do
+    legend:setColWidth(i * 2 - 1, Helper.standardTextHeight)
+  end
+  for i = 1, #entries, config.legendPairs do
+    local legendRow = legend:addRow(true, {})
+    for j = 0, config.legendPairs - 1 do
+      local entry = entries[i + j]
+      if entry ~= nil then
+        legendRow[j * 2 + 1]:createText("")
+        legendRow[j * 2 + 1].properties.cellBGColor = colorFor(entry.key)
+        legendRow[j * 2 + 2]:createText(entry.name, { halign = "left" })
+      end
+    end
+  end
+end
+
 -- A checkbox without an explicit width stretches over the whole cell, and cells
 -- have no halign for non-text widgets, so the box is squared and centred by hand.
 local function createCenteredCheckBox(cell, checked)
@@ -472,6 +669,7 @@ function menu.createLeftPanel(x, width)
   -- 1-3 and its profit in column 4.
   local leftTable = menu.infoFrame:addTable(4, {
     tabOrder = 1, width = width, x = x, y = Helper.frameBorder, borderEnabled = true,
+    maxVisibleHeight = scrollHeight(Helper.frameBorder),
     backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
   })
 
@@ -548,15 +746,6 @@ function menu.createLeftPanel(x, width)
 
   if isRanked(menu.view) then
     row = leftTable:addRow(true, { fixed = true })
-    row[1]:createText(ReadText(PAGE, 1010), { halign = "left" })
-    local topEntries = {}
-    for _, limit in ipairs(config.topLimits) do
-      topEntries[#topEntries + 1] = { id = tostring(limit), text = tostring(limit) }
-    end
-    row[2]:setColSpan(3):createDropDown(dropdownOptions(topEntries), { startOption = tostring(menu.topLimit), height = Helper.standardButtonHeight })
-    row[2].handlers.onDropDownConfirmed = menu.selectTop
-
-    row = leftTable:addRow(true, { fixed = true })
     row[1]:createText(ReadText(PAGE, 1011), { halign = "left" })
     createCenteredCheckBox(row[2]:setColSpan(3), menu.reverse)
     row[2].handlers.onClick = function(_, checked) return menu.toggleReverse(checked) end
@@ -583,8 +772,13 @@ function menu.createLeftPanel(x, width)
     row = leftTable:addRow(false, {})
     row[1]:setColSpan(4):createText(sta.scanned and ReadText(PAGE, 1016) or ReadText(PAGE, 1015),
       { halign = "center", wordwrap = true, color = Color["text_inactive"] })
+    menu.leftRowCount = #leftTable.rows
     return
   end
+
+  -- Ship rows are plain text rows, so what the engine makes of them is the pitch
+  -- the paged views on the right are laid out with.
+  local beforeShips = leftTable:getFullHeight()
 
   for _, entry in ipairs(rows) do
     local idcode = entry.ship.idcode
@@ -608,6 +802,14 @@ function menu.createLeftPanel(x, width)
     row[1].handlers.onClick = function() return menu.clickShip(idcode) end
     row[4].handlers.onClick = function() return menu.clickShip(idcode) end
   end
+
+  -- getFullHeight adds a border below every row but the last, so the delta over
+  -- N rows is N whole pitches. Rounded up: a wasted row beats a hidden one.
+  menu.measuredPitch = math.ceil((leftTable:getFullHeight() - beforeShips) / #rows)
+  -- What the right panel has left of the frame's row pool.
+  menu.leftRowCount  = #leftTable.rows
+  sta.traceLog("rowPitch: measured %d over %d ship row(s), %d left panel row(s).",
+    menu.measuredPitch, #rows, menu.leftRowCount)
 end
 
 function menu.createRightPanel(x, width)
@@ -629,6 +831,7 @@ end
 local function emptyPanel(x, width, textId)
   local t = menu.infoFrame:addTable(1, {
     tabOrder = 2, width = width, x = x, y = Helper.frameBorder,
+    maxVisibleHeight = scrollHeight(Helper.frameBorder),
     backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
   })
   local row = t:addRow(false, { fixed = true })
@@ -648,6 +851,7 @@ function menu.createTransactionsPanel(x, width)
 
   local t = menu.infoFrame:addTable(10, {
     tabOrder = 2, width = width, x = x, y = Helper.frameBorder, borderEnabled = true,
+    maxVisibleHeight = scrollHeight(Helper.frameBorder),
     backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
   })
 
@@ -669,7 +873,7 @@ function menu.createTransactionsPanel(x, width)
   -- Newest first: the recent tail is what anyone opening this actually wants.
   for i = #transactions, 1, -1 do
     local tx = transactions[i]
-    row = t:addRow(false, {})
+    row = t:addRow(true, {})
     row[1]:createText(sta.formatAgo(tx.t), { halign = "left" })
     row[2]:createText(ReadText(PAGE, tx.sale and 1019 or 1018),
       { halign = "left", color = tx.sale and Color["text_positive"] or Color["text_negative"] })
@@ -699,6 +903,7 @@ function menu.createTradesPanel(x, width)
 
   local t = menu.infoFrame:addTable(8, {
     tabOrder = 2, width = width, x = x, y = Helper.frameBorder, borderEnabled = true,
+    maxVisibleHeight = scrollHeight(Helper.frameBorder),
     backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
   })
 
@@ -771,7 +976,17 @@ function menu.createGraphPanel(x, width)
   end
   local caps = (totalPoints > config.maxTotalPoints) and fairShareCaps(lines, config.maxTotalPoints) or nil
 
-  local graphHeight = math.floor(width * 9 / 16)
+  -- The graph widget has no legend of its own, and the ship list only colours the
+  -- rows currently plotted, so the same bottom legend serves here.
+  local legendEntries = {}
+  for _, line in ipairs(lines) do
+    legendEntries[#legendEntries + 1] = { key = line.id, name = line.ship.fullName }
+  end
+
+  -- The graph cell needs an explicit height: keep the screen's own aspect ratio,
+  -- capped at what the legend leaves above it.
+  local graphHeight = math.floor(math.min(width * Helper.viewHeight / Helper.viewWidth,
+    contentBottom(#legendEntries) - Helper.frameBorder))
   local t = menu.infoFrame:addTable(1, { tabOrder = 2, width = width, x = x, y = Helper.frameBorder })
   local row = t:addRow(false, { fixed = true })
   menu.graph = row[1]:createGraph({ height = graphHeight, scaling = false })
@@ -807,32 +1022,37 @@ function menu.createGraphPanel(x, width)
     granularity = (maxY - minY) / 10, gridcolor = Color["graph_grid"] })
   menu.graph:setYAxisLabel(ReadText(1001, 101))
 
-  -- Legend: the graph widget has none, and the ship list only colours rows that
-  -- are currently plotted.
-  local legend = menu.infoFrame:addTable(2, {
-    tabOrder = 3, width = width, x = x,
-    y = t.properties.y + t:getFullHeight() + Helper.borderSize,
-    backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
-  })
-  legend:setColWidth(1, Helper.standardTextHeight)
-  for _, line in ipairs(lines) do
-    local legendRow = legend:addRow(false, {})
-    legendRow[1]:createText("")
-    legendRow[1].properties.cellBGColor = colorFor(line.id)
-    legendRow[2]:createText(line.ship.fullName, { halign = "left" })
-  end
+  createLegend(x, width, legendEntries, 3)
 end
 
 -- Horizontal stacked bar built from background-coloured cells: the only way to
 -- get a segmented bar out of the X4 table widget, which has no bar chart. A table
 -- is capped at 13 columns, so the bar is spread over config.barTables tables put
 -- side by side; every row exists in all of them, which keeps the rows aligned.
+--
+-- None of those tables is meant to scroll - they cannot be kept in sync - so as
+-- many rows as fit are drawn and the rest is reached page by page.
 function menu.createRankedPanel(x, width, groupBy)
   local groups = rankedRows(groupBy)
   if #groups == 0 then
     return emptyPanel(x, width, 1016)
   end
 
+  -- Legend over the whole ranking, not just this page, so an entry keeps its
+  -- place in the list while paging; its height is what the bars have to fit above.
+  local seen, legendEntries = {}, {}
+  for _, g in ipairs(groups) do
+    for _, p in ipairs(g.partOrder) do
+      if not seen[p.key] then
+        seen[p.key] = true
+        legendEntries[#legendEntries + 1] = p
+      end
+    end
+  end
+  table.sort(legendEntries, function(a, b) return a.name < b.name end)
+
+  -- Bar length is measured against the largest total in the whole ranking, so
+  -- rows stay comparable from page to page.
   local maxTotal = 0 ---@type number
   for _, g in ipairs(groups) do
     maxTotal = math.max(maxTotal, math.abs(g.total))
@@ -841,13 +1061,14 @@ function menu.createRankedPanel(x, width, groupBy)
     maxTotal = 1
   end
 
-  local numTables = math.max(1, config.barTables)
+  local numBars   = math.max(1, config.barTables)
   local cols      = config.maxTableCols
-  local segments  = numTables * cols - 2
+  local segments  = numBars * cols
   local labelWidth = math.floor(width * 0.3)
   local totalWidth = math.floor(width * 0.18)
-  -- Every table has cols-1 inner borders, plus one gap between adjacent tables.
-  local borders   = (numTables * (cols - 1) + numTables - 1) * Helper.borderSize
+  -- Inner borders of the bar tables, the one inside the label table, and a gap
+  -- in front of every bar table.
+  local borders   = (numBars * (cols - 1) + numBars + 1) * Helper.borderSize
   local segWidth  = math.max(1, math.floor((width - labelWidth - totalWidth - borders) / segments))
   -- Whatever flooring the segments left over goes to the total column, so the
   -- panel still ends flush with the right edge.
@@ -856,51 +1077,73 @@ function menu.createRankedPanel(x, width, groupBy)
     totalWidth = restWidth
   end
 
-  -- The name occupies the very first cell and the total the very last one; all
-  -- the rest are equally wide bar segments, which is what makes the split seamless.
-  local function colWidth(k, col)
-    if (k == 1) and (col == 1) then
-      return labelWidth
-    elseif (k == numTables) and (col == cols) then
-      return totalWidth
-    end
-    return segWidth
-  end
+  local bottom = contentBottom(#legendEntries)
 
-  local tables, tableX = {}, x
-  for k = 1, numTables do
-    local tableWidth = (cols - 1) * Helper.borderSize
-    for col = 1, cols do
-      tableWidth = tableWidth + colWidth(k, col)
-    end
-    local t = menu.infoFrame:addTable(cols, {
-      tabOrder = 1 + k, width = tableWidth, x = tableX, y = Helper.frameBorder, borderEnabled = true,
+  -- The title spans the whole panel in a table of its own: the data tables below
+  -- then start at the same y with no title row of their own to keep in step.
+  local titleTable = menu.infoFrame:addTable(1, {
+    tabOrder = 2, width = width, x = x, y = Helper.frameBorder,
+    maxVisibleHeight = scrollHeight(Helper.frameBorder, bottom),
+    backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
+  })
+  local titleRow = titleTable:addRow(false, { fixed = true, bgColor = Color["row_title_background"] })
+  titleRow[1]:createText(ReadText(PAGE, (groupBy == "ware") and 105 or 104), Helper.titleTextProperties)
+
+  local dataY = Helper.frameBorder + titleTable:getFullHeight() + Helper.borderSize
+
+  local function addDataTable(numCols, tableWidth, tableX, tabOrder)
+    return menu.infoFrame:addTable(numCols, {
+      tabOrder = tabOrder, width = tableWidth, x = tableX, y = dataY, borderEnabled = true,
+      -- Paging fills these to fit, so nothing should ever scroll; the cap is what
+      -- keeps a row-height misjudgement to a clipped row instead of a lost table.
+      maxVisibleHeight = scrollHeight(dataY, bottom),
+      -- All columns are explicit, so there is none left to take the reserved
+      -- scrollbar space.
+      reserveScrollBar = false,
       backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
     })
+  end
+
+  -- Name and total are a table of their own, and the first one built: the frame
+  -- hands out its rows in that order, so they are the last thing an exhausted
+  -- row pool can take away. Every bar table right of it holds nothing but
+  -- segments, all of them equally wide, which is what makes the split seamless.
+  local labelTable = addDataTable(2, labelWidth + totalWidth + Helper.borderSize, x, 3)
+  labelTable:setColWidth(1, labelWidth, false)
+  labelTable:setColWidth(2, totalWidth, false)
+
+  local barWidth = cols * segWidth + (cols - 1) * Helper.borderSize
+  local tables, tableX = {}, x + labelTable.properties.width + Helper.borderSize
+  for k = 1, numBars do
+    local t = addDataTable(cols, barWidth, tableX, 3 + k)
     for col = 1, cols do
-      t:setColWidth(col, colWidth(k, col), false)
+      t:setColWidth(col, segWidth, false)
     end
     tables[k] = t
-    tableX = tableX + tableWidth + Helper.borderSize
+    tableX = tableX + barWidth + Helper.borderSize
   end
 
-  -- Title styling on all of them, or the continuation tables would start a row higher.
-  for k, t in ipairs(tables) do
-    local row = t:addRow(false, { fixed = true, bgColor = Color["row_title_background"] })
-    row[1]:setColSpan(cols):createText((k == 1) and ReadText(PAGE, (groupBy == "ware") and 105 or 104) or "",
-      Helper.titleTextProperties)
-  end
+  -- No table carries a header of its own any more, so the rows start right below
+  -- the title table.
+  local layout = pageLayout(#groups, dataY, bottom, 0,
+    numBars + 1, math.ceil(#legendEntries / config.legendPairs))
 
-  for _, g in ipairs(groups) do
+  for i = layout.first, layout.last do
+    local g = groups[i]
+    local labelRow = labelTable:addRow(false, {})
+    labelRow[1]:createText(g.name, { halign = "left" })
+    labelRow[2]:createText(sta.formatMoney(g.total), {
+      halign = "right", color = (g.total >= 0) and Color["text_positive"] or Color["text_negative"],
+    })
+
     local rows = {}
     for k, t in ipairs(tables) do
       rows[k] = t:addRow(false, {})
     end
-    rows[1][1]:createText(g.name, { halign = "left" })
 
-    -- Segment i is the (i+1)-th cell counted across all tables.
-    local function segmentCell(i)
-      return rows[math.floor(i / cols) + 1][i % cols + 1]
+    -- Segment n is the n-th cell counted across the bar tables.
+    local function segmentCell(n)
+      return rows[math.floor((n - 1) / cols) + 1][(n - 1) % cols + 1]
     end
 
     -- Bar length is the group's share of the largest total, so rows stay
@@ -931,47 +1174,23 @@ function menu.createRankedPanel(x, width, groupBy)
         cell.properties.cellBGColor = colorFor(p.key)
       end
     end
-
-    rows[numTables][cols]:createText(sta.formatMoney(g.total), {
-      halign = "right", color = (g.total >= 0) and Color["text_positive"] or Color["text_negative"],
-    })
   end
 
-  -- Legend for whatever the segments turned out to be.
-  local seen, legendEntries = {}, {}
-  for _, g in ipairs(groups) do
-    for _, p in ipairs(g.partOrder) do
-      if not seen[p.key] then
-        seen[p.key] = true
-        legendEntries[#legendEntries + 1] = p
-      end
-    end
-  end
-  table.sort(legendEntries, function(a, b) return a.name < b.name end)
+  -- Ground truth for both budgets: height against the space pageLayout counted,
+  -- and the rows this frame asks the pool for.
+  local pageRows = layout.last - layout.first + 1
+  sta.traceLog("rankedPanel: table height %d, budget %d, %d frame row(s) of %d.",
+    labelTable:getFullHeight(), bottom - dataY - pagerHeight() - Helper.borderSize,
+    (menu.leftRowCount or 0) + (numBars + 1) * pageRows + 2
+    + math.ceil(#legendEntries / config.legendPairs), config.maxFrameRows)
 
-  -- Each pair is a narrow swatch cell plus a wide name cell.
-  local legendPairs = config.legendPairs
-  local legend = menu.infoFrame:addTable(legendPairs * 2, {
-    tabOrder = 2 + numTables, width = width, x = x,
-    y = tables[1].properties.y + tables[1]:getFullHeight() + Helper.borderSize,
-    backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
-  })
-  for i = 1, legendPairs do
-    legend:setColWidth(i * 2 - 1, Helper.standardTextHeight)
-  end
-  for i = 1, #legendEntries, legendPairs do
-    local legendRow = legend:addRow(false, {})
-    for j = 0, legendPairs - 1 do
-      local entry = legendEntries[i + j]
-      if entry ~= nil then
-        legendRow[j * 2 + 1]:createText("")
-        legendRow[j * 2 + 1].properties.cellBGColor = colorFor(entry.key)
-        legendRow[j * 2 + 2]:createText(entry.name, { halign = "left" })
-      end
-    end
-  end
+  createPager(x, width, bottom, 4 + numBars)
+  createLegend(x, width, legendEntries, 5 + numBars)
 end
 
+-- One bar per ship, so no segments and no legend: the real status bar widget does
+-- the drawing here. A single table, so nothing has to be kept in sync with
+-- anything - it just scrolls, and needs neither paging nor a height budget.
 function menu.createCargoLoadPanel(x, width)
   local rows = cargoLoadRows()
   if #rows == 0 then
@@ -980,6 +1199,7 @@ function menu.createCargoLoadPanel(x, width)
 
   local t = menu.infoFrame:addTable(4, {
     tabOrder = 2, width = width, x = x, y = Helper.frameBorder, borderEnabled = true,
+    maxVisibleHeight = scrollHeight(Helper.frameBorder),
     backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
   })
   t:setColWidth(1, Helper.round(width * 0.34), false)
@@ -995,12 +1215,14 @@ function menu.createCargoLoadPanel(x, width)
   row[3]:createText(ReadText(PAGE, 1025), { halign = "right" })
   row[4]:createText(ReadText(PAGE, 1026), { halign = "right" })
 
-  for _, entry in ipairs(rows) do
-    row = t:addRow(false, {})
+  -- Selectable, or the table takes no input focus and cannot be scrolled at all.
+  for i = 1, #rows do
+    local entry = rows[i]
+    row = t:addRow(true, {})
     row[1]:createText(entry.name, { halign = "left" })
     row[2]:createStatusBar({
-      current = entry.average, start = 0, max = 100,
-      valueColor = colorFor(entry.key), height = Helper.standardTextHeight, scaling = false,
+      current = entry.average, start = 0, max = 100, valueColor = colorFor(entry.key),
+      height = Helper.scaleY(Helper.standardTextHeight), scaling = false,
     })
     row[3]:createText(string.format("%.0f%%", entry.average), { halign = "right" })
     row[4]:createText(string.format("%.0f%%", entry.best), { halign = "right" })

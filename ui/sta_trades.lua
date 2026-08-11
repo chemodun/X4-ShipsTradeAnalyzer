@@ -208,7 +208,7 @@ end
 
 -- Ranked breakdown over completed trades, mirroring sta.rankedBreakdown's shape
 -- so the ranked views can render either analysis mode from one code path.
-function staTrades.rankedBreakdown(filter, groupBy, limit, reverse)
+function staTrades.rankedBreakdown(filter, groupBy, reverse)
   local groups = {}
   local order = {}
 
@@ -259,18 +259,11 @@ function staTrades.rankedBreakdown(filter, groupBy, limit, reverse)
     end
     order = flipped
   end
-  if limit and limit > 0 and #order > limit then
-    local trimmed = {}
-    for i = 1, limit do
-      trimmed[i] = order[i]
-    end
-    order = trimmed
-  end
   return order
 end
 
 -- Load distribution over completed trades: how full the ship actually ran.
-function staTrades.cargoLoad(filter, limit, reverse)
+function staTrades.cargoLoad(filter, reverse)
   local rows = {}
   for _, ship in ipairs(sta.ships) do
     if sta.shipMatches(ship, filter) then
@@ -303,13 +296,6 @@ function staTrades.cargoLoad(filter, limit, reverse)
       flipped[#flipped + 1] = rows[i]
     end
     rows = flipped
-  end
-  if limit and limit > 0 and #rows > limit then
-    local trimmed = {}
-    for i = 1, limit do
-      trimmed[i] = rows[i]
-    end
-    rows = trimmed
   end
   return rows
 end
