@@ -1155,18 +1155,22 @@ function menu.createTradesPanel(x, width)
     backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
   })
 
+  -- Expand column, vanilla's own (menu_map's info rows): a square button as tall
+  -- as a text row, so a trade row cannot outgrow the pitch the page is measured
+  -- against. Widths must precede the first addRow.
+  t:setColWidth(1, Helper.scaleY(Helper.standardTextHeight) + Helper.standardContainerOffset, false)
+
   local row = t:addRow(false, { fixed = true, bgColor = Color["row_title_background"] })
   row[1]:setColSpan(8):createText(ship.fullName, Helper.titleTextProperties)
 
   row = t:addRow(false, { fixed = true, bgColor = Color["row_background_unselectable"] })
-  row[1]:createText(ReadText(PAGE, 110), { halign = "left" })
-  row[2]:createText(ReadText(PAGE, 112), { halign = "left" })
-  row[3]:createText(ReadText(PAGE, 130), { halign = "right" })
-  row[4]:createText(ReadText(PAGE, 131), { halign = "right" })
-  row[5]:createText(ReadText(PAGE, 132), { halign = "right" })
-  row[6]:createText(ReadText(PAGE, 133), { halign = "right" })
-  row[7]:createText(ReadText(PAGE, 119), { halign = "right" })
-  row[8]:createText("", { halign = "right" })
+  row[2]:createText(ReadText(PAGE, 110), { halign = "left" })
+  row[3]:createText(ReadText(PAGE, 112), { halign = "left" })
+  row[4]:createText(ReadText(PAGE, 130), { halign = "right" })
+  row[5]:createText(ReadText(PAGE, 131), { halign = "right" })
+  row[6]:createText(ReadText(PAGE, 132), { halign = "right" })
+  row[7]:createText(ReadText(PAGE, 133), { halign = "right" })
+  row[8]:createText(ReadText(PAGE, 119), { halign = "right" })
 
   -- Measured, not derived: the title row is taller than the header row below it.
   -- Expanded trades put their legs on top of the page and are what the height cap
@@ -1179,27 +1183,27 @@ function menu.createTradesPanel(x, width)
     local trade = trades[i]
     local key = ship.idcode .. "#" .. i
     row = t:addRow("trade_" .. key, {})
-    row[1]:createText(sta.formatAgo(trade.startTime), { halign = "left" })
-    row[2]:createText(sta.getWare(trade.ware).name, { halign = "left" })
-    row[3]:createText(sta.formatMoney(trade.buyCost), { halign = "right" })
-    row[4]:createText(sta.formatMoney(trade.revenue), { halign = "right" })
-    row[5]:createText(sta.formatMoney(trade.profit),
+    row[1]:createButton({ height = Helper.standardTextHeight }):setText(menu.expanded[key] and "-" or "+", { halign = "center" })
+    row[1].handlers.onClick = function() return menu.toggleExpanded(key) end
+    row[2]:createText(sta.formatAgo(trade.startTime), { halign = "left" })
+    row[3]:createText(sta.getWare(trade.ware).name, { halign = "left" })
+    row[4]:createText(sta.formatMoney(trade.buyCost), { halign = "right" })
+    row[5]:createText(sta.formatMoney(trade.revenue), { halign = "right" })
+    row[6]:createText(sta.formatMoney(trade.profit),
       { halign = "right", color = (trade.profit >= 0) and Color["text_positive"] or Color["text_negative"] })
-    row[6]:createText(sta.formatDuration(trade.duration), { halign = "right" })
-    row[7]:createText(string.format("%.0f%%", trade.load), { halign = "right" })
-    row[8]:createButton({}):setText(menu.expanded[key] and "-" or "+", { halign = "center" })
-    row[8].handlers.onClick = function() return menu.toggleExpanded(key) end
+    row[7]:createText(sta.formatDuration(trade.duration), { halign = "right" })
+    row[8]:createText(string.format("%.0f%%", trade.load), { halign = "right" })
 
     if menu.expanded[key] then
       local function legRow(leg, isSale)
         local legrow = t:addRow(false, { bgColor = Color["row_background_unselectable"] })
-        legrow[1]:createText(sta.formatAgo(leg.t), { halign = "left" })
-        legrow[2]:createText(ReadText(PAGE, isSale and 1019 or 1018),
+        legrow[2]:createText(sta.formatAgo(leg.t), { halign = "left" })
+        legrow[3]:createText(ReadText(PAGE, isSale and 1019 or 1018),
           { halign = "left", color = isSale and Color["text_positive"] or Color["text_negative"] })
-        legrow[3]:setColSpan(2):createText(leg.station, { halign = "left" })
-        legrow[5]:createText(leg.sector, { halign = "left" })
-        legrow[6]:createText(sta.formatMoney(leg.price), { halign = "right" })
-        legrow[7]:createText(tostring(leg.vol), { halign = "right" })
+        legrow[4]:setColSpan(2):createText(leg.station, { halign = "left" })
+        legrow[6]:createText(leg.sector, { halign = "left" })
+        legrow[7]:createText(sta.formatMoney(leg.price), { halign = "right" })
+        legrow[8]:createText(tostring(leg.vol), { halign = "right" })
       end
       for _, leg in ipairs(trade.purchases) do legRow(leg, false) end
       for _, leg in ipairs(trade.sales) do legRow(leg, true) end
