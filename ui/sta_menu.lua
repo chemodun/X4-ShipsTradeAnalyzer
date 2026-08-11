@@ -162,9 +162,9 @@ local function resetState()
   menu.nextPartColor = 1
 end
 
-local function shipByIdcode(idcode)
+local function shipByKey(key)
   for _, ship in ipairs(sta.ships) do
-    if ship.idcode == idcode then
+    if ship.key == key then
       return ship
     end
   end
@@ -186,8 +186,8 @@ end
 -- Graph colours are a pool, not a sequence: a plotted ship holds its slot until
 -- it leaves the graph, and the next pick takes the lowest slot free, so two
 -- lines can never end up the same colour. Slots come back in plottedShips.
-local function shipColor(idcode)
-  local slot = menu.shipColors[idcode]
+local function shipColor(key)
+  local slot = menu.shipColors[key]
   if slot == nil then
     local used = {}
     for _, s in pairs(menu.shipColors) do
@@ -199,7 +199,7 @@ local function shipColor(idcode)
         break
       end
     end
-    menu.shipColors[idcode] = slot
+    menu.shipColors[key] = slot
   end
   return config.seriesColors[slot]
 end
@@ -321,7 +321,7 @@ local function decimatePoints(points, cap)
   return result
 end
 
--- Idcodes the graph draws: the list's multiselection, falling back to the current
+-- The ships the graph draws: the list's multiselection, falling back to the current
 -- row while nothing is multiselected, so the graph is never blank. The ship list
 -- marks the same set, so the rows always say what the graph shows. It is also the
 -- one place that knows the whole drawn set, so colour slots are freed here.
@@ -330,9 +330,9 @@ local function plottedShips()
   if next(plotted) == nil then
     plotted = (menu.selectedShip ~= nil) and { [menu.selectedShip] = true } or {}
   end
-  for idcode in pairs(menu.shipColors) do
-    if plotted[idcode] == nil then
-      menu.shipColors[idcode] = nil
+  for key in pairs(menu.shipColors) do
+    if plotted[key] == nil then
+      menu.shipColors[key] = nil
     end
   end
   return plotted
@@ -342,7 +342,7 @@ local function graphShipList()
   local plotted = plottedShips()
   local list = {}
   for _, entry in ipairs(shipRows()) do
-    if plotted[entry.ship.idcode] then
+    if plotted[entry.ship.key] then
       list[#list + 1] = entry.ship
     end
   end
@@ -417,18 +417,18 @@ function menu.onShowMenu()
   local id64 = menu.param[3]
   if id64 ~= nil and id64 ~= 0 then
     local luaId = ConvertStringToLuaID(tostring(id64))
-    local idcode = GetComponentData(luaId, "idcode")
-    if idcode ~= nil then
-      if IsComponentClass(luaId, "station") then
-        menu.filter.parentStation = idcode
-      elseif shipByIdcode(idcode) ~= nil then
-        menu.selectedShip = idcode
-        -- Reopened on another ship: the list starts on it rather than on
-        -- whatever the previous visit left selected and scrolled to.
-        menu.graphShips = {}
-        menu.shipTopRow = nil
-        menu.shipShift  = nil
-      end
+    -- Rebuilt through ConvertIDTo64Bit rather than from the event's own
+    -- parameter, which need not stringify the way a stored key does.
+    local key = tostring(ConvertIDTo64Bit(luaId))
+    if IsComponentClass(luaId, "station") then
+      menu.filter.parentStation = key
+    elseif shipByKey(key) ~= nil then
+      menu.selectedShip = key
+      -- Reopened on another ship: the list starts on it rather than on
+      -- whatever the previous visit left selected and scrolled to.
+      menu.graphShips = {}
+      menu.shipTopRow = nil
+      menu.shipShift  = nil
     end
   end
 
@@ -538,7 +538,7 @@ local function updateGraphShips(uitable, currentRow)
   for _, r in ipairs(rows) do
     local rowdata = map[r]
     if (type(rowdata) == "table") and (rowdata[1] == "ship") then
-      picks[#picks + 1] = { row = r, idcode = rowdata[2] }
+      picks[#picks + 1] = { row = r, key = rowdata[2] }
     end
   end
 
@@ -546,14 +546,14 @@ local function updateGraphShips(uitable, currentRow)
   -- first, then the new ones take whatever the pool has left, in list order.
   local plotted, free = {}, #config.seriesColors
   for _, p in ipairs(picks) do
-    if menu.graphShips[p.idcode] then
-      plotted[p.idcode] = true
+    if menu.graphShips[p.key] then
+      plotted[p.key] = true
       free = free - 1
     end
   end
   for _, p in ipairs(picks) do
-    if (not plotted[p.idcode]) and (free > 0) then
-      plotted[p.idcode] = true
+    if (not plotted[p.key]) and (free > 0) then
+      plotted[p.key] = true
       free = free - 1
     end
   end
@@ -564,7 +564,7 @@ local function updateGraphShips(uitable, currentRow)
   -- raises no event of its own, so the highlight is gone before the next draw.
   local keptRows, refused = {}, false
   for _, p in ipairs(picks) do
-    if plotted[p.idcode] then
+    if plotted[p.key] then
       keptRows[#keptRows + 1] = p.row
     else
       refused = true
@@ -577,11 +577,11 @@ local function updateGraphShips(uitable, currentRow)
   end
 
   local changed = false
-  for idcode in pairs(plotted) do
-    changed = changed or (menu.graphShips[idcode] == nil)
+  for key in pairs(plotted) do
+    changed = changed or (menu.graphShips[key] == nil)
   end
-  for idcode in pairs(menu.graphShips) do
-    changed = changed or (plotted[idcode] == nil)
+  for key in pairs(menu.graphShips) do
+    changed = changed or (plotted[key] == nil)
   end
   menu.graphShips = plotted
   return changed
@@ -598,9 +598,9 @@ function menu.onRowChanged(row, rowdata, uitable, _modified, _input, _source)
   -- Kept so the rebuilt list opens where the player left it.
   menu.shipTopRow = GetTopRow(uitable)
 
-  local idcode  = rowdata[2]
-  local changed = (idcode ~= menu.selectedShip)
-  menu.selectedShip = idcode
+  local key     = rowdata[2]
+  local changed = (key ~= menu.selectedShip)
+  menu.selectedShip = key
   if changed then
     -- Another ship's history starts at its own first page.
     menu.page = 1
@@ -617,7 +617,7 @@ function menu.onRowChanged(row, rowdata, uitable, _modified, _input, _source)
     local plotted = 0
     for _ in pairs(menu.graphShips) do plotted = plotted + 1 end
     sta.traceLog("selection: current %s, %d plotted, top row %s.",
-      idcode, plotted, tostring(menu.shipTopRow))
+      key, plotted, tostring(menu.shipTopRow))
     menu.refreshInfoFrame()
   end
 end
@@ -944,7 +944,7 @@ function menu.createLeftPanel(x, width)
     { id = "none", text = ReadText(PAGE, 108) },
   }
   for _, station in ipairs(sta.stations) do
-    stationEntries[#stationEntries + 1] = { id = station.idcode, text = station.name }
+    stationEntries[#stationEntries + 1] = { id = station.key, text = station.name }
   end
   row = leftTable:addRow(true, { fixed = true })
   row[1]:createText(ReadText(PAGE, 1003), { halign = "left" })
@@ -1055,23 +1055,23 @@ function menu.createLeftPanel(x, width)
   end
 
   -- A ship is picked by making its row current, not by clicking a cell, so the
-  -- rows carry their idcode as row data and nothing carries a click handler.
+  -- rows carry their id as row data and nothing carries a click handler.
   local selectedRow
   local firstShipRow
   local plottedSet = multi and plottedShips() or {}
   for _, entry in ipairs(rows) do
-    local idcode  = entry.ship.idcode
-    local plotted = plottedSet[idcode] ~= nil
-    row = leftTable:addRow({ "ship", idcode }, { multiSelected = plotted })
+    local key     = entry.ship.key
+    local plotted = plottedSet[key] ~= nil
+    row = leftTable:addRow({ "ship", key }, { multiSelected = plotted })
     firstShipRow = firstShipRow or row
-    if idcode == menu.selectedShip then
+    if key == menu.selectedShip then
       selectedRow = row.index
     end
     -- Plotted rows take their line's colour, which is what ties a row to a line -
     -- the inline icon takes the cell colour too, so it follows the line.
     local icon = (entry.ship.icon ~= "") and ("\027[" .. entry.ship.icon .. "] ") or ""
     row[1]:setColSpan(3):createText(icon .. entry.ship.fullName,
-      { halign = "left", color = plotted and shipColor(idcode) or nil })
+      { halign = "left", color = plotted and shipColor(key) or nil })
     row[4]:createText(sta.formatMoney(entry.profit), {
       halign = "right", color = (entry.profit >= 0) and Color["text_positive"] or Color["text_negative"],
     })
@@ -1134,7 +1134,7 @@ local function emptyPanel(x, width, textId)
 end
 
 function menu.createTransactionsPanel(x, width)
-  local ship = menu.selectedShip and shipByIdcode(menu.selectedShip) or nil
+  local ship = menu.selectedShip and shipByKey(menu.selectedShip) or nil
   if ship == nil then
     return emptyPanel(x, width, 1017)
   end
@@ -1193,7 +1193,7 @@ function menu.createTransactionsPanel(x, width)
 end
 
 function menu.createTradesPanel(x, width)
-  local ship = menu.selectedShip and shipByIdcode(menu.selectedShip) or nil
+  local ship = menu.selectedShip and shipByKey(menu.selectedShip) or nil
   if ship == nil then
     return emptyPanel(x, width, 1017)
   end
@@ -1235,7 +1235,7 @@ function menu.createTradesPanel(x, width)
   for j = first, last do
     local i = #trades - j + 1
     local trade = trades[i]
-    local key = ship.idcode .. "#" .. i
+    local key = ship.key .. "#" .. i
     row = t:addRow("trade_" .. key, {})
     row[1]:createButton({ height = Helper.standardTextHeight }):setText(menu.expanded[key] and "-" or "+", { halign = "center" })
     row[1].handlers.onClick = function() return menu.toggleExpanded(key) end
@@ -1278,7 +1278,7 @@ function menu.createGraphPanel(x, width)
   for _, ship in ipairs(ships) do
     local points = buildCumulativePoints(ship, ctx)
     if #points > 0 then
-      lines[#lines + 1] = { id = ship.idcode, ship = ship, points = points, need = #points }
+      lines[#lines + 1] = { id = ship.key, ship = ship, points = points, need = #points }
     end
   end
   if #lines == 0 then

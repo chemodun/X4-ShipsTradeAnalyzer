@@ -29,7 +29,7 @@ local sta = {
   available  = false,
 
   ships      = {},   -- array of ship records, see buildShip()
-  stations   = {},   -- array of { idcode, name } - parent-station filter options
+  stations   = {},   -- array of { id, key, name } - parent-station filter options
   wareCache  = {},   -- [wareId] = { name, transport, volume, avgprice }
 
   scanTime      = 0, -- game time the last scan ran at
@@ -181,6 +181,8 @@ end
 -- Station the ship reports to, walked up the commander chain: a subordinate of
 -- a fleet led by a station-based commander still belongs to that station.
 -- The depth cap guards against a malformed cycle, not against deep fleets.
+-- Returns the station as a UniverseID - the same form buyerid/sellerid arrive in,
+-- so a relation is a direct comparison - plus what its display name needs.
 local function parentStation(luaId)
   local current = GetCommander(luaId)
   for _ = 1, 8 do
@@ -188,12 +190,12 @@ local function parentStation(luaId)
       break
     end
     if IsComponentClass(current, "station") then
-      local idcode, name = GetComponentData(current, "idcode", "name")
-      return idcode, name
+      local name, idcode = GetComponentData(current, "name", "idcode")
+      return ConvertIDTo64Bit(current), name, idcode
     end
     current = GetCommander(current)
   end
-  return nil, nil
+  return nil, nil, nil
 end
 
 -- *** counterpart resolution ***
@@ -327,19 +329,24 @@ end
 local function buildShip(luaId)
   local name, idcode, sector, icon = GetComponentData(luaId, "name", "idcode", "sector", "icon")
   local classId = shipClassOf(luaId)
-  local stationIdcode, stationName = parentStation(luaId)
+  local stationId, stationName, stationIdcode = parentStation(luaId)
   local id64 = ConvertIDTo64Bit(luaId)
   return {
     luaId       = luaId,
     id64        = id64,
+    -- Identity is the object. `key` is only its canonical string, for the places
+    -- a 64-bit id cannot go: table keys (LuaJIT hashes cdata by identity, not by
+    -- value), row data and dropdown ids. Both come off the same id64, so they
+    -- cannot disagree; the idcode is display text and nothing else.
+    key         = tostring(id64),
     name        = name or "",
-    idcode      = idcode or "",
     fullName    = displayName(name, idcode),
     classId     = classId or "",
     icon        = icon or "",
     sector      = sector or "",
-    stationIdcode = stationIdcode,
-    stationName   = stationIdcode and displayName(stationName, stationIdcode) or nil,
+    stationId   = stationId,
+    stationKey  = stationId and tostring(stationId) or nil,
+    stationName = stationId and displayName(stationName, stationIdcode) or nil,
     capacity    = cargoCapacities(id64),
     tx          = {},
     profit      = 0,
@@ -369,9 +376,9 @@ function sta.scan()
       readShipLog(ship, 0, now)
       if #ship.tx > 0 then
         sta.ships[#sta.ships + 1] = ship
-        if ship.stationIdcode ~= nil and not stationSeen[ship.stationIdcode] then
-          stationSeen[ship.stationIdcode] = true
-          sta.stations[#sta.stations + 1] = { idcode = ship.stationIdcode, name = ship.stationName }
+        if ship.stationKey ~= nil and not stationSeen[ship.stationKey] then
+          stationSeen[ship.stationKey] = true
+          sta.stations[#sta.stations + 1] = { id = ship.stationId, key = ship.stationKey, name = ship.stationName }
         end
       end
     end
@@ -393,7 +400,7 @@ end
 function sta.defaultFilter()
   local cfg = sta.getConfig()
   return {
-    parentStation  = "any",   -- "any" | "none" | <station idcode>
+    parentStation  = "any",   -- "any" | "none" | <station id as a string>
     shipClass      = "all",   -- "all" | ship_xl | ship_l | ship_m | ship_s
     cargoType      = "all",   -- "all" | container | solid | liquid | gas
     internalTrades = not (cfg.includeInternalTrades == false or cfg.includeInternalTrades == 0),
@@ -405,9 +412,9 @@ function sta.shipMatches(ship, filter)
     return false
   end
   if filter.parentStation == "none" then
-    return ship.stationIdcode == nil
+    return ship.stationId == nil
   elseif filter.parentStation ~= "any" then
-    return ship.stationIdcode == filter.parentStation
+    return ship.stationKey == filter.parentStation
   end
   return true
 end
@@ -499,9 +506,9 @@ function sta.rankedBreakdown(filter, groupBy, reverse)
         if sta.txMatches(tx, filter) then
           local ware = sta.getWare(tx.ware)
           if groupBy == "ware" then
-            bucket(tx.ware, ware.name, ship.idcode, ship.fullName, tx.profit)
+            bucket(tx.ware, ware.name, ship.key, ship.fullName, tx.profit)
           else
-            bucket(ship.idcode, ship.fullName, tx.ware, ware.name, tx.profit)
+            bucket(ship.key, ship.fullName, tx.ware, ware.name, tx.profit)
           end
         end
       end
@@ -546,7 +553,7 @@ function sta.cargoLoad(filter, reverse)
       end
       if count > 0 then
         rows[#rows + 1] = {
-          key = ship.idcode, name = ship.fullName,
+          key = ship.key, name = ship.fullName,
           average = sum / count, best = best, count = count,
         }
       end

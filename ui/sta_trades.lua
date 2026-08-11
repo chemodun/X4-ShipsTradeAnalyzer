@@ -234,9 +234,9 @@ function staTrades.rankedBreakdown(filter, groupBy, reverse)
       for _, trade in ipairs(staTrades.filteredTrades(ship, filter)) do
         local ware = sta.getWare(trade.ware)
         if groupBy == "ware" then
-          bucket(trade.ware, ware.name, ship.idcode, ship.fullName, trade.profit)
+          bucket(trade.ware, ware.name, ship.key, ship.fullName, trade.profit)
         else
-          bucket(ship.idcode, ship.fullName, trade.ware, ware.name, trade.profit)
+          bucket(ship.key, ship.fullName, trade.ware, ware.name, trade.profit)
         end
       end
     end
@@ -277,7 +277,7 @@ function staTrades.cargoLoad(filter, reverse)
       end
       if count > 0 then
         rows[#rows + 1] = {
-          key = ship.idcode, name = ship.fullName,
+          key = ship.key, name = ship.fullName,
           average = sum / count, best = best, count = count,
         }
       end
