@@ -187,7 +187,7 @@ function staTrades.filteredShips(filter, sortBy)
         revenue = revenue + trade.revenue
         count = count + 1
       end
-      if count > 0 then
+      if count > 0 or not filter.withTransactions then
         result[#result + 1] = { ship = ship, profit = profit, turnover = revenue, count = count }
       end
     end

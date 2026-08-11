@@ -213,7 +213,8 @@ end
 local function shipRows()
   local f = menu.filter
   local key = table.concat({ menu.mode, menu.sortBy, f.parentStation, f.shipClass,
-    f.cargoType, tostring(f.internalTrades), tostring(sta.scanTime) }, "|")
+    f.cargoType, tostring(f.internalTrades), tostring(f.withTransactions),
+    tostring(sta.scanTime) }, "|")
   if menu.shipRowsKey ~= key then
     if menu.mode == "trades" then
       menu.shipRowsCache = staTrades.filteredShips(f, menu.sortBy)
@@ -420,8 +421,16 @@ function menu.onShowMenu()
     -- Rebuilt through ConvertIDTo64Bit rather than from the event's own
     -- parameter, which need not stringify the way a stored key does.
     local key = tostring(ConvertIDTo64Bit(luaId))
+    sta.traceLog("onShowMenu: opened on %s, key %s, station %s, known ship %s.",
+      GetComponentData(luaId, "idcode") or "?", key,
+      tostring(IsComponentClass(luaId, "station")), tostring(shipByKey(key) ~= nil))
     if IsComponentClass(luaId, "station") then
       menu.filter.parentStation = key
+      -- Opened on a station whose ships never traded: show them rather than an
+      -- empty list under a filter value the dropdown does not even offer.
+      if not sta.stationOffered(menu.filter, key) then
+        menu.filter.withTransactions = false
+      end
     elseif shipByKey(key) ~= nil then
       menu.selectedShip = key
       -- Reopened on another ship: the list starts on it rather than on
@@ -494,6 +503,16 @@ end
 
 function menu.toggleInternal(checked)
   menu.filter.internalTrades = checked
+  refreshFromFirstPage()
+end
+
+-- Narrowing to ships that traded also narrows the parent-station options, so a
+-- station picked while every ship was listed can stop being on offer.
+function menu.toggleWithTransactions(checked)
+  menu.filter.withTransactions = checked
+  if not sta.stationOffered(menu.filter, menu.filter.parentStation) then
+    menu.filter.parentStation = "any"
+  end
   refreshFromFirstPage()
 end
 
@@ -939,11 +958,16 @@ function menu.createLeftPanel(x, width)
   row = leftTable:addRow(false, { fixed = true, bgColor = Color["row_title_background"] })
   row[1]:setColSpan(4):createText(ReadText(PAGE, 121), Helper.titleTextProperties)
 
+  row = leftTable:addRow(true, { fixed = true })
+  row[1]:createText(ReadText(PAGE, 1033), { halign = "left" })
+  createCenteredCheckBox(row[2]:setColSpan(3), menu.filter.withTransactions)
+  row[2].handlers.onClick = function(_, checked) return menu.toggleWithTransactions(checked) end
+
   local stationEntries = {
     { id = "any",  text = ReadText(PAGE, 107) },
     { id = "none", text = ReadText(PAGE, 108) },
   }
-  for _, station in ipairs(sta.stations) do
+  for _, station in ipairs(sta.stationOptions(menu.filter)) do
     stationEntries[#stationEntries + 1] = { id = station.key, text = station.name }
   end
   row = leftTable:addRow(true, { fixed = true })

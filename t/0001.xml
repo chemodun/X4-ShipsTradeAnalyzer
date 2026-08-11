@@ -72,6 +72,7 @@
             <t id="1030">h</t>
             <t id="1031">Bar Detail</t>
             <t id="1032">Number of Ships</t>
+            <t id="1033">With Transactions</t>
 
             <!-- Options page -->
             <t id="90102">Include Internal Trades by Default</t>

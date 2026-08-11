@@ -29,7 +29,6 @@ local sta = {
   available  = false,
 
   ships      = {},   -- array of ship records, see buildShip()
-  stations   = {},   -- array of { id, key, name } - parent-station filter options
   wareCache  = {},   -- [wareId] = { name, transport, volume, avgprice }
 
   scanTime      = 0, -- game time the last scan ran at
@@ -183,17 +182,32 @@ end
 -- The depth cap guards against a malformed cycle, not against deep fleets.
 -- Returns the station as a UniverseID - the same form buyerid/sellerid arrive in,
 -- so a relation is a direct comparison - plus what its display name needs.
-local function parentStation(luaId)
+local function parentStation(luaId, label)
+  local tracing = sta.debugLevel == "trace"
   local current = GetCommander(luaId)
-  for _ = 1, 8 do
+  for hop = 1, 8 do
     if current == nil or current == 0 then
-      break
+      if tracing then
+        traceLog("parentStation: %s no commander at hop %d.", label, hop)
+      end
+      return nil, nil, nil
     end
-    if IsComponentClass(current, "station") then
-      local name, idcode = GetComponentData(current, "name", "idcode")
-      return ConvertIDTo64Bit(current), name, idcode
+    local isStation = IsComponentClass(current, "station")
+    -- The lookup is only paid for when it is the answer, or when trace asked.
+    if isStation or tracing then
+      local name, idcode, classId = GetComponentData(current, "name", "idcode", "classid")
+      if tracing then
+        traceLog("parentStation: %s hop %d commander %s (%s), classid %s, station %s.",
+          label, hop, name or "?", idcode or "?", classId or "?", tostring(isStation))
+      end
+      if isStation then
+        return ConvertIDTo64Bit(current), name, idcode
+      end
     end
     current = GetCommander(current)
+  end
+  if tracing then
+    traceLog("parentStation: %s depth cap reached, no station in the chain.", label)
   end
   return nil, nil, nil
 end
@@ -329,7 +343,8 @@ end
 local function buildShip(luaId)
   local name, idcode, sector, icon = GetComponentData(luaId, "name", "idcode", "sector", "icon")
   local classId = shipClassOf(luaId)
-  local stationId, stationName, stationIdcode = parentStation(luaId)
+  local fullName = displayName(name, idcode)
+  local stationId, stationName, stationIdcode = parentStation(luaId, fullName)
   local id64 = ConvertIDTo64Bit(luaId)
   return {
     luaId       = luaId,
@@ -340,7 +355,7 @@ local function buildShip(luaId)
     -- cannot disagree; the idcode is display text and nothing else.
     key         = tostring(id64),
     name        = name or "",
-    fullName    = displayName(name, idcode),
+    fullName    = fullName,
     classId     = classId or "",
     icon        = icon or "",
     sector      = sector or "",
@@ -354,6 +369,20 @@ local function buildShip(luaId)
   }
 end
 
+-- A ship worth listing, by vanilla's own test (menu_map.lua:7547 isObjectValid):
+-- drones and other units, deployables (laser towers, satellites, mines, resource
+-- probes), wrecks and limpet-attached hulls are all "ship" class and none of them
+-- is a ship the player trades with. The class test comes first so the component
+-- lookup is only paid for on actual ships.
+local function isListableShip(luaId)
+  if not IsComponentClass(luaId, "ship") or IsComponentClass(luaId, "spacesuit") then
+    return false
+  end
+  local isdeployable, isunit, iswreck, isattachedaslimpet =
+      GetComponentData(luaId, "isdeployable", "isunit", "iswreck", "isattachedaslimpet")
+  return not (isdeployable or isunit or iswreck or isattachedaslimpet)
+end
+
 function sta.scan()
   if not sta.available then
     debugLog("scan: trade-log API unavailable, nothing to do.")
@@ -363,30 +392,32 @@ function sta.scan()
   local now = C.GetCurrentGameTime()
 
   sta.ships = {}
-  sta.stations = {}
   sta.totalEntries = 0
   sta.skippedShips = 0
   sta.scanTime = now
 
-  local stationSeen = {}
+  -- Every listable ship is kept, traded or not; the "with transactions" filter is
+  -- what decides which of them a view shows, and the parent-station options are
+  -- derived from that same set (sta.stationOptions).
+  local tradingShips, shipsWithStation = 0, 0
   local objects = GetContainedObjectsByOwner("player")
   for _, luaId in ipairs(objects) do
-    if IsComponentClass(luaId, "ship") and not IsComponentClass(luaId, "spacesuit") then
+    if isListableShip(luaId) then
       local ship = buildShip(luaId)
       readShipLog(ship, 0, now)
+      sta.ships[#sta.ships + 1] = ship
       if #ship.tx > 0 then
-        sta.ships[#sta.ships + 1] = ship
-        if ship.stationKey ~= nil and not stationSeen[ship.stationKey] then
-          stationSeen[ship.stationKey] = true
-          sta.stations[#sta.stations + 1] = { id = ship.stationId, key = ship.stationKey, name = ship.stationName }
-        end
+        tradingShips = tradingShips + 1
+      end
+      if ship.stationKey ~= nil then
+        shipsWithStation = shipsWithStation + 1
       end
     end
   end
 
-  table.sort(sta.stations, function(a, b) return a.name < b.name end)
   sta.scanned = true
-  debugLog("scan: %d trading ship(s), %d trade entries.", #sta.ships, sta.totalEntries)
+  debugLog("scan: %d ship(s), %d trading, %d trade entries, %d under a station.",
+    #sta.ships, tradingShips, sta.totalEntries, shipsWithStation)
 end
 
 function sta.ensureScanned()
@@ -400,6 +431,9 @@ end
 function sta.defaultFilter()
   local cfg = sta.getConfig()
   return {
+    -- The scan keeps every ship; this is what narrows the views to the ones that
+    -- have something in the trade log, which is what the analysis is about.
+    withTransactions = true,
     parentStation  = "any",   -- "any" | "none" | <station id as a string>
     shipClass      = "all",   -- "all" | ship_xl | ship_l | ship_m | ship_s
     cargoType      = "all",   -- "all" | container | solid | liquid | gas
@@ -407,7 +441,47 @@ function sta.defaultFilter()
   }
 end
 
+-- Parent-station options for the current filter: the stations of exactly the ships
+-- the views are showing, so an option can never come up empty and no station is
+-- hidden because its miners never trade. Memoised on the one filter field it
+-- depends on, since the dropdown is rebuilt with every frame.
+function sta.stationOptions(filter)
+  local key = tostring(filter.withTransactions) .. "|" .. tostring(sta.scanTime)
+  if sta.stationOptionsKey ~= key then
+    local list, seen = {}, {}
+    for _, ship in ipairs(sta.ships) do
+      if ship.stationKey ~= nil and not seen[ship.stationKey]
+          and (#ship.tx > 0 or not filter.withTransactions) then
+        seen[ship.stationKey] = true
+        list[#list + 1] = { id = ship.stationId, key = ship.stationKey, name = ship.stationName }
+      end
+    end
+    table.sort(list, function(a, b) return a.name < b.name end)
+    sta.stationOptionsCache = list
+    sta.stationOptionsKey = key
+    traceLog("stationOptions: %d station(s) for withTransactions %s.", #list, tostring(filter.withTransactions))
+  end
+  return sta.stationOptionsCache
+end
+
+-- True when the station is still on offer under the current filter - a parent
+-- station picked with every ship listed need not survive narrowing to traders.
+function sta.stationOffered(filter, key)
+  if key == "any" or key == "none" then
+    return true
+  end
+  for _, station in ipairs(sta.stationOptions(filter)) do
+    if station.key == key then
+      return true
+    end
+  end
+  return false
+end
+
 function sta.shipMatches(ship, filter)
+  if filter.withTransactions and #ship.tx == 0 then
+    return false
+  end
   if filter.shipClass ~= "all" and ship.classId ~= filter.shipClass then
     return false
   end
@@ -443,7 +517,9 @@ function sta.filteredShips(filter, sortBy)
           count = count + 1
         end
       end
-      if count > 0 then
+      -- With the transaction filter off a ship earns its row by existing, not by
+      -- having anything to show; the ranked views still take only what has rows.
+      if count > 0 or not filter.withTransactions then
         result[#result + 1] = {
           ship = ship, profit = profit, turnover = turnover, count = count,
         }

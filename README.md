@@ -15,7 +15,7 @@ Brings the analysis of [X4 Player Ship Trade Analyzer](https://www.nexusmods.com
   - **Ships by Wares** - ranked bars, one per ship, split by the wares it traded.
   - **Wares by Ships** - the same, transposed: one bar per ware, split by the ships that carried it.
   - **Cargo Load** - how full each ship actually ran, average and best.
-- **Filters** applying to every view - parent station \(any, none, or one specific station\), ship class \(XL, L, M, S\), cargo type \(container, solid, liquid, gas\) and whether trades between your own stations count.
+- **Filters** applying to every view - **With Transactions** \(on by default: only ships that have something in the trade log\), parent station \(any, none, or one specific station\), ship class \(XL, L, M, S\), cargo type \(container, solid, liquid, gas\) and whether trades between your own stations count. The parent-station list follows the ships being shown, so turning **With Transactions** off also brings in the stations whose ships never trade - a station's own miners, for instance, deliver internally and never appear in the trade log.
 - **Sorting** of the ship list by name or by profit, with the filtered total shown above it.
 - **Reverse order** on the ranked views, to look at the bottom of the ranking instead of the top.
 - **No cut-off ranking**. The bar views fit as many bars as the screen has room for and page through the rest, so nothing is hidden behind a "top 25". The colour legend sits at the bottom of the screen and scrolls when it is long.
@@ -25,7 +25,7 @@ Brings the analysis of [X4 Player Ship Trade Analyzer](https://www.nexusmods.com
 
 Right-click any player-owned ship or station and pick **Trade Analyzer**.
 
-Opening it on a ship preselects that ship. Opening it on a station preselects that station as the parent-station filter, so you immediately see just the ships assigned to it.
+Opening it on a ship preselects that ship. Opening it on a station preselects that station as the parent-station filter, so you immediately see just the ships assigned to it - and if none of them has traded, **With Transactions** is turned off for you so you still see the ships rather than an empty list.
 
 A ship is picked by making its row the current one in the list on the left, exactly like the object list on the map. **Profit over Time** draws several ships at once, so there the list works like the map's as well: ctrl-click adds or removes a ship, shift-click takes a range, and a plain click goes back to a single one. Up to 8 lines are drawn - picking a ninth ship drops the one picked first.
 
