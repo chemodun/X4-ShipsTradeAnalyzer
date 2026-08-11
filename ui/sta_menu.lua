@@ -1,7 +1,7 @@
 -- Ships Trade Analyzer - menu.
 --
 -- Standalone top-level menu registered the way vanilla registers
--- TransactionLogMenu. Left panel: analysis mode, view, filters and the ship
+-- TransactionLogMenu. Left panel: view, analysis mode, filters and the ship
 -- list. Right panel: whichever view is selected.
 --
 -- Opened from the right-click interaction menu of any player-owned ship or
@@ -66,11 +66,14 @@ local config = {
   legendPairs      = 6,
   -- Rows reserved for the legend at the bottom of the panel, whatever it holds.
   legendRows       = 5,
-  maxGraphShips    = 8,
-  maxTotalPoints   = 300,
+  -- Shared across every plotted line, not per line: what the graph widget can
+  -- still usefully draw at once (station_ware_history settled on the same 200).
+  maxTotalPoints   = 200,
   maxYRoundTo      = 1000,
   point = { type = "square", size = 5 },
   line  = { type = "normal", size = 2 },
+  -- Also the cap on plotted ships: the graph holds exactly as many lines as
+  -- there are distinct colours for them.
   seriesColors = {
     Color["graph_data_1"], Color["graph_data_2"], Color["graph_data_3"], Color["graph_data_4"],
     Color["graph_data_5"], Color["graph_data_6"], Color["graph_data_7"], Color["graph_data_8"],
@@ -153,7 +156,7 @@ local function resetState()
   menu.shipTopRow = nil
   menu.shipShift  = nil
   menu.graphShips = {}
-  menu.graphSeq   = 0
+  menu.shipColors = {}
   menu.expanded   = {}
   menu.partColors = {}
   menu.nextPartColor = 1
@@ -178,6 +181,27 @@ local function colorFor(key)
     menu.nextPartColor = menu.nextPartColor + 1
   end
   return c
+end
+
+-- Graph colours are a pool, not a sequence: a plotted ship holds its slot until
+-- it leaves the graph, and the next pick takes the lowest slot free, so two
+-- lines can never end up the same colour. Slots come back in plottedShips.
+local function shipColor(idcode)
+  local slot = menu.shipColors[idcode]
+  if slot == nil then
+    local used = {}
+    for _, s in pairs(menu.shipColors) do
+      used[s] = true
+    end
+    for i = 1, #config.seriesColors do
+      if not used[i] then
+        slot = i
+        break
+      end
+    end
+    menu.shipColors[idcode] = slot
+  end
+  return config.seriesColors[slot]
 end
 
 -- *** mode-agnostic data access ***
@@ -299,15 +323,19 @@ end
 
 -- Idcodes the graph draws: the list's multiselection, falling back to the current
 -- row while nothing is multiselected, so the graph is never blank. The ship list
--- marks the same set, so the rows always say what the graph shows.
+-- marks the same set, so the rows always say what the graph shows. It is also the
+-- one place that knows the whole drawn set, so colour slots are freed here.
 local function plottedShips()
-  if next(menu.graphShips) ~= nil then
-    return menu.graphShips
+  local plotted = menu.graphShips
+  if next(plotted) == nil then
+    plotted = (menu.selectedShip ~= nil) and { [menu.selectedShip] = true } or {}
   end
-  if menu.selectedShip ~= nil then
-    return { [menu.selectedShip] = 1 }
+  for idcode in pairs(menu.shipColors) do
+    if plotted[idcode] == nil then
+      menu.shipColors[idcode] = nil
+    end
   end
-  return {}
+  return plotted
 end
 
 local function graphShipList()
@@ -499,48 +527,70 @@ function menu.editPage(text)
   menu.refreshInfoFrame()
 end
 
--- The graph view plots what the ship list has multiselected, capped at the number
--- of lines the graph can carry: past the cap the oldest pick gives way to the
--- newest, so a click never silently does nothing. Returns whether the set changed.
-local function updateGraphShips(uitable)
+-- The graph view plots what the ship list has multiselected, capped at the colour
+-- pool: a ship already plotted keeps its colour, and a fresh pick with none left
+-- for it is taken straight back off the widget. Returns whether the set changed.
+local function updateGraphShips(uitable, currentRow)
   local rows = GetSelectedRows(uitable) or {}
   local map  = (menu.rowDataMap and menu.rowDataMap[uitable]) or {}
 
-  local picked = {}
+  local picks = {}
   for _, r in ipairs(rows) do
     local rowdata = map[r]
     if (type(rowdata) == "table") and (rowdata[1] == "ship") then
-      local idcode = rowdata[2]
-      local seq    = menu.graphShips[idcode]
-      if seq == nil then
-        menu.graphSeq = menu.graphSeq + 1
-        seq = menu.graphSeq
-      end
-      picked[#picked + 1] = { idcode = idcode, seq = seq }
+      picks[#picks + 1] = { row = r, idcode = rowdata[2] }
     end
   end
-  table.sort(picked, function(a, b) return a.seq > b.seq end)
 
-  local kept = {}
-  for i = 1, math.min(#picked, config.maxGraphShips) do
-    kept[picked[i].idcode] = picked[i].seq
+  -- Two passes over the same picks: the ships already plotted claim their slots
+  -- first, then the new ones take whatever the pool has left, in list order.
+  local plotted, free = {}, #config.seriesColors
+  for _, p in ipairs(picks) do
+    if menu.graphShips[p.idcode] then
+      plotted[p.idcode] = true
+      free = free - 1
+    end
+  end
+  for _, p in ipairs(picks) do
+    if (not plotted[p.idcode]) and (free > 0) then
+      plotted[p.idcode] = true
+      free = free - 1
+    end
+  end
+
+  -- A refused pick by definition leaves the plotted set alone, so the frame is
+  -- not rebuilt and the row would keep the widget's own highlight. Push the
+  -- selection back instead: `SetSelectedRows` with the unchanged current row
+  -- raises no event of its own, so the highlight is gone before the next draw.
+  local keptRows, refused = {}, false
+  for _, p in ipairs(picks) do
+    if plotted[p.idcode] then
+      keptRows[#keptRows + 1] = p.row
+    else
+      refused = true
+    end
+  end
+  if refused then
+    SetSelectedRows(uitable, keptRows, currentRow)
+    sta.traceLog("updateGraphShips: %d colour(s) all taken, pick on row %s refused.",
+      #keptRows, tostring(currentRow))
   end
 
   local changed = false
-  for idcode in pairs(kept) do
+  for idcode in pairs(plotted) do
     changed = changed or (menu.graphShips[idcode] == nil)
   end
   for idcode in pairs(menu.graphShips) do
-    changed = changed or (kept[idcode] == nil)
+    changed = changed or (plotted[idcode] == nil)
   end
-  menu.graphShips = kept
+  menu.graphShips = plotted
   return changed
 end
 
 -- The ship list drives the right panel through the table's own current row, the
 -- way the map's object list does. Only a real change rebuilds the frame: a
 -- multiselect table reports its current row again on every redraw of its own.
-function menu.onRowChanged(_row, rowdata, uitable, _modified, _input, _source)
+function menu.onRowChanged(row, rowdata, uitable, _modified, _input, _source)
   if (type(rowdata) ~= "table") or (rowdata[1] ~= "ship") then
     return
   end
@@ -557,8 +607,10 @@ function menu.onRowChanged(_row, rowdata, uitable, _modified, _input, _source)
   end
 
   if menu.view == "graph" then
+    changed = updateGraphShips(uitable, row) or changed
+    -- Read back after the pick is settled: refusing one moves the widget's own
+    -- shift anchors, and the stale pair would be restored over them.
     menu.shipShift = GetShiftStartEndRow(uitable)
-    changed = updateGraphShips(uitable) or changed
   end
 
   if changed then
@@ -810,7 +862,7 @@ end
 -- Legend for the colours a view assigns, listing every entry of the whole
 -- ranking rather than the current page, so a ware keeps its place while paging.
 -- Rows are selectable because a table only scrolls once it can take the focus.
-local function createLegend(x, width, entries, tabOrder)
+local function createLegend(x, width, entries, tabOrder, colorOf)
   local _, visible = legendHeights(#entries)
   if visible <= 0 then
     return
@@ -830,7 +882,7 @@ local function createLegend(x, width, entries, tabOrder)
       local entry = entries[i + j]
       if entry ~= nil then
         legendRow[j * 2 + 1]:createText("")
-        legendRow[j * 2 + 1].properties.cellBGColor = colorFor(entry.key)
+        legendRow[j * 2 + 1].properties.cellBGColor = colorOf(entry.key)
         legendRow[j * 2 + 2]:createText(entry.name, { halign = "left" })
       end
     end
@@ -863,16 +915,6 @@ function menu.createLeftPanel(x, width)
   local row = leftTable:addRow(false, { fixed = true, bgColor = Color["row_title_background"] })
   row[1]:setColSpan(4):createText(ReadText(PAGE, 1000), Helper.titleTextProperties)
 
-  -- Analysis mode
-  row = leftTable:addRow(true, { fixed = true })
-  row[1]:createText(ReadText(PAGE, 1001), { halign = "left" })
-  local modeEntries = {}
-  for _, m in ipairs(modes) do
-    modeEntries[#modeEntries + 1] = { id = m.id, text = ReadText(PAGE, m.text) }
-  end
-  row[2]:setColSpan(3):createDropDown(dropdownOptions(modeEntries), { startOption = menu.mode, height = Helper.standardButtonHeight })
-  row[2].handlers.onDropDownConfirmed = menu.selectMode
-
   -- View
   row = leftTable:addRow(true, { fixed = true })
   row[1]:createText(ReadText(PAGE, 1002), { halign = "left" })
@@ -882,6 +924,16 @@ function menu.createLeftPanel(x, width)
   end
   row[2]:setColSpan(3):createDropDown(dropdownOptions(viewEntries), { startOption = menu.view, height = Helper.standardButtonHeight })
   row[2].handlers.onDropDownConfirmed = menu.selectView
+
+  -- Analysis mode
+  row = leftTable:addRow(true, { fixed = true })
+  row[1]:createText(ReadText(PAGE, 1001), { halign = "left" })
+  local modeEntries = {}
+  for _, m in ipairs(modes) do
+    modeEntries[#modeEntries + 1] = { id = m.id, text = ReadText(PAGE, m.text) }
+  end
+  row[2]:setColSpan(3):createDropDown(dropdownOptions(modeEntries), { startOption = menu.mode, height = Helper.standardButtonHeight })
+  row[2].handlers.onDropDownConfirmed = menu.selectMode
 
   -- Filters
   row = leftTable:addRow(false, { fixed = true, bgColor = Color["row_title_background"] })
@@ -1015,9 +1067,11 @@ function menu.createLeftPanel(x, width)
     if idcode == menu.selectedShip then
       selectedRow = row.index
     end
-    -- Plotted rows take their line's colour, which is what ties a row to a line.
-    row[1]:setColSpan(3):createText(entry.ship.classLetter .. " " .. entry.ship.fullName,
-      { halign = "left", color = plotted and colorFor(idcode) or nil })
+    -- Plotted rows take their line's colour, which is what ties a row to a line -
+    -- the inline icon takes the cell colour too, so it follows the line.
+    local icon = (entry.ship.icon ~= "") and ("\027[" .. entry.ship.icon .. "] ") or ""
+    row[1]:setColSpan(3):createText(icon .. entry.ship.fullName,
+      { halign = "left", color = plotted and shipColor(idcode) or nil })
     row[4]:createText(sta.formatMoney(entry.profit), {
       halign = "right", color = (entry.profit >= 0) and Color["text_positive"] or Color["text_negative"],
     })
@@ -1235,7 +1289,12 @@ function menu.createGraphPanel(x, width)
   for _, line in ipairs(lines) do
     totalPoints = totalPoints + line.need
   end
-  local caps = (totalPoints > config.maxTotalPoints) and fairShareCaps(lines, config.maxTotalPoints) or nil
+  local caps = nil
+  if totalPoints > config.maxTotalPoints then
+    caps = fairShareCaps(lines, config.maxTotalPoints)
+    sta.traceLog("createGraphPanel: %d point(s) across %d line(s) exceeds the %d budget, downsampling.",
+      totalPoints, #lines, config.maxTotalPoints)
+  end
 
   -- The graph widget has no legend of its own, and the ship list only colours the
   -- rows currently plotted, so the same bottom legend serves here.
@@ -1260,7 +1319,7 @@ function menu.createGraphPanel(x, width)
     if caps ~= nil and #points > caps[line.id] then
       points = decimatePoints(points, caps[line.id])
     end
-    local color = colorFor(line.id)
+    local color = shipColor(line.id)
     local datarecord = menu.graph:addDataRecord({
       markertype = config.point.type, markersize = config.point.size, markercolor = color,
       linetype = config.line.type, linewidth = config.line.size, linecolor = color,
@@ -1283,7 +1342,7 @@ function menu.createGraphPanel(x, width)
     granularity = (maxY - minY) / 10, gridcolor = Color["graph_grid"] })
   menu.graph:setYAxisLabel(ReadText(1001, 101))
 
-  createLegend(x, width, legendEntries, 3)
+  createLegend(x, width, legendEntries, 3, shipColor)
 end
 
 -- Horizontal stacked bar built from background-coloured cells: the only way to
@@ -1453,7 +1512,7 @@ function menu.createRankedPanel(x, width, groupBy)
   end
 
   createPager(x, width, bottom, 4 + numBars)
-  createLegend(x, width, legendEntries, 5 + numBars)
+  createLegend(x, width, legendEntries, 5 + numBars, colorFor)
 end
 
 -- One bar per ship, so no segments and no legend: the real status bar widget does

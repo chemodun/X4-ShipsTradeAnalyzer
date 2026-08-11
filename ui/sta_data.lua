@@ -325,7 +325,7 @@ local function readShipLog(ship, startTime, endTime)
 end
 
 local function buildShip(luaId)
-  local name, idcode, sector = GetComponentData(luaId, "name", "idcode", "sector")
+  local name, idcode, sector, icon = GetComponentData(luaId, "name", "idcode", "sector", "icon")
   local classId = shipClassOf(luaId)
   local stationIdcode, stationName = parentStation(luaId)
   local id64 = ConvertIDTo64Bit(luaId)
@@ -336,7 +336,7 @@ local function buildShip(luaId)
     idcode      = idcode or "",
     fullName    = displayName(name, idcode),
     classId     = classId or "",
-    classLetter = sta.classLetter(classId),
+    icon        = icon or "",
     sector      = sector or "",
     stationIdcode = stationIdcode,
     stationName   = stationIdcode and displayName(stationName, stationIdcode) or nil,
