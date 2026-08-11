@@ -7,6 +7,10 @@
 -- Opened from the right-click interaction menu of any player-owned ship or
 -- station (raise_lua_event 'ShipsTradeAnalyzer.OpenMenu' param=<component>).
 --
+-- A ship is picked the way the map's object list picks one: the list's current
+-- row is the selection, and only the graph view - which draws several ships at
+-- once - makes the list multiselect.
+--
 -- The X4 graph widget only draws lines (graphtype is "line" and nothing else
 -- is accepted), so the ware and load breakdowns are horizontal bars built from
 -- background-coloured table cells rather than real column charts.
@@ -146,7 +150,10 @@ local function resetState()
   menu.page       = 1
   menu.pageCount  = 1
   menu.selectedShip = nil
+  menu.shipTopRow = nil
+  menu.shipShift  = nil
   menu.graphShips = {}
+  menu.graphSeq   = 0
   menu.expanded   = {}
   menu.partColors = {}
   menu.nextPartColor = 1
@@ -278,19 +285,25 @@ local function decimatePoints(points, cap)
   return result
 end
 
--- Ships currently plotted, defaulting to the selected one so the graph is never
--- blank just because nothing was explicitly ticked.
+-- Idcodes the graph draws: the list's multiselection, falling back to the current
+-- row while nothing is multiselected, so the graph is never blank. The ship list
+-- marks the same set, so the rows always say what the graph shows.
+local function plottedShips()
+  if next(menu.graphShips) ~= nil then
+    return menu.graphShips
+  end
+  if menu.selectedShip ~= nil then
+    return { [menu.selectedShip] = 1 }
+  end
+  return {}
+end
+
 local function graphShipList()
+  local plotted = plottedShips()
   local list = {}
   for _, entry in ipairs(shipRows()) do
-    if menu.graphShips[entry.ship.idcode] then
+    if plotted[entry.ship.idcode] then
       list[#list + 1] = entry.ship
-    end
-  end
-  if #list == 0 and menu.selectedShip ~= nil then
-    local ship = shipByIdcode(menu.selectedShip)
-    if ship ~= nil then
-      list[1] = ship
     end
   end
   return list
@@ -370,6 +383,11 @@ function menu.onShowMenu()
         menu.filter.parentStation = idcode
       elseif shipByIdcode(idcode) ~= nil then
         menu.selectedShip = idcode
+        -- Reopened on another ship: the list starts on it rather than on
+        -- whatever the previous visit left selected and scrolled to.
+        menu.graphShips = {}
+        menu.shipTopRow = nil
+        menu.shipShift  = nil
       end
     end
   end
@@ -469,21 +487,71 @@ function menu.editPage(text)
   menu.refreshInfoFrame()
 end
 
--- In the graph view a ship row toggles plotting; everywhere else it selects.
-function menu.clickShip(idcode)
-  if menu.view == "graph" then
-    if menu.graphShips[idcode] then
-      menu.graphShips[idcode] = nil
-    else
-      local count = 0
-      for _ in pairs(menu.graphShips) do count = count + 1 end
-      if count < config.maxGraphShips then
-        menu.graphShips[idcode] = true
+-- The graph view plots what the ship list has multiselected, capped at the number
+-- of lines the graph can carry: past the cap the oldest pick gives way to the
+-- newest, so a click never silently does nothing. Returns whether the set changed.
+local function updateGraphShips(uitable)
+  local rows = GetSelectedRows(uitable) or {}
+  local map  = (menu.rowDataMap and menu.rowDataMap[uitable]) or {}
+
+  local picked = {}
+  for _, r in ipairs(rows) do
+    local rowdata = map[r]
+    if (type(rowdata) == "table") and (rowdata[1] == "ship") then
+      local idcode = rowdata[2]
+      local seq    = menu.graphShips[idcode]
+      if seq == nil then
+        menu.graphSeq = menu.graphSeq + 1
+        seq = menu.graphSeq
       end
+      picked[#picked + 1] = { idcode = idcode, seq = seq }
     end
   end
+  table.sort(picked, function(a, b) return a.seq > b.seq end)
+
+  local kept = {}
+  for i = 1, math.min(#picked, config.maxGraphShips) do
+    kept[picked[i].idcode] = picked[i].seq
+  end
+
+  local changed = false
+  for idcode in pairs(kept) do
+    changed = changed or (menu.graphShips[idcode] == nil)
+  end
+  for idcode in pairs(menu.graphShips) do
+    changed = changed or (kept[idcode] == nil)
+  end
+  menu.graphShips = kept
+  return changed
+end
+
+-- The ship list drives the right panel through the table's own current row, the
+-- way the map's object list does. Only a real change rebuilds the frame: a
+-- multiselect table reports its current row again on every redraw of its own.
+function menu.onRowChanged(_row, rowdata, uitable, _modified, _input, _source)
+  if (type(rowdata) ~= "table") or (rowdata[1] ~= "ship") then
+    return
+  end
+
+  -- Kept so the rebuilt list opens where the player left it.
+  menu.shipTopRow = GetTopRow(uitable)
+
+  local idcode  = rowdata[2]
+  local changed = (idcode ~= menu.selectedShip)
   menu.selectedShip = idcode
-  menu.refreshInfoFrame()
+
+  if menu.view == "graph" then
+    menu.shipShift = GetShiftStartEndRow(uitable)
+    changed = updateGraphShips(uitable) or changed
+  end
+
+  if changed then
+    local plotted = 0
+    for _ in pairs(menu.graphShips) do plotted = plotted + 1 end
+    sta.traceLog("selection: current %s, %d plotted, top row %s.",
+      idcode, plotted, tostring(menu.shipTopRow))
+    menu.refreshInfoFrame()
+  end
 end
 
 function menu.toggleExpanded(key)
@@ -740,12 +808,16 @@ local function createCenteredCheckBox(cell, checked)
 end
 
 function menu.createLeftPanel(x, width)
+  -- The graph plots several ships at once and takes them from the list's
+  -- multiselection; every other view reads the current row alone.
+  local multi = (menu.view == "graph")
+
   -- Four equal columns serve both halves of the panel: a control row is a label
   -- in column 1 and the control spanning 2-4, a ship row is the name spanning
   -- 1-3 and its profit in column 4.
   local leftTable = menu.infoFrame:addTable(4, {
     tabOrder = 1, width = width, x = x, y = Helper.frameBorder, borderEnabled = true,
-    maxVisibleHeight = scrollHeight(Helper.frameBorder),
+    maxVisibleHeight = scrollHeight(Helper.frameBorder), multiSelect = multi,
     backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
   })
 
@@ -889,27 +961,23 @@ function menu.createLeftPanel(x, width)
     return
   end
 
+  -- A ship is picked by making its row current, not by clicking a cell, so the
+  -- rows carry their idcode as row data and nothing carries a click handler.
+  local selectedRow
+  local plottedSet = multi and plottedShips() or {}
   for _, entry in ipairs(rows) do
-    local idcode = entry.ship.idcode
-    local selected = (idcode == menu.selectedShip)
-    local prefix = ""
-    if menu.view == "graph" then
-      prefix = menu.graphShips[idcode] and "\027[widget_ok]  " or ""
+    local idcode  = entry.ship.idcode
+    local plotted = plottedSet[idcode] ~= nil
+    row = leftTable:addRow({ "ship", idcode }, { multiSelected = plotted })
+    if idcode == menu.selectedShip then
+      selectedRow = row.index
     end
-    row = leftTable:addRow("ship_" .. idcode, {})
-    local nameColor
-    if menu.view == "graph" and menu.graphShips[idcode] then
-      nameColor = colorFor(idcode)
-    elseif selected then
-      nameColor = Color["text_positive"]
-    end
-    row[1]:setColSpan(3):createText(prefix .. entry.ship.classLetter .. " " .. entry.ship.fullName,
-      { halign = "left", color = nameColor })
+    -- Plotted rows take their line's colour, which is what ties a row to a line.
+    row[1]:setColSpan(3):createText(entry.ship.classLetter .. " " .. entry.ship.fullName,
+      { halign = "left", color = plotted and colorFor(idcode) or nil })
     row[4]:createText(sta.formatMoney(entry.profit), {
       halign = "right", color = (entry.profit >= 0) and Color["text_positive"] or Color["text_negative"],
     })
-    row[1].handlers.onClick = function() return menu.clickShip(idcode) end
-    row[4].handlers.onClick = function() return menu.clickShip(idcode) end
   end
 
   -- getFullHeight adds a border below every row but the last, so the delta over
@@ -919,6 +987,27 @@ function menu.createLeftPanel(x, width)
   menu.leftRowCount  = #leftTable.rows
   sta.traceLog("rowPitch: measured %d over %d ship row(s), %d left panel row(s).",
     menu.measuredPitch, #rows, menu.leftRowCount)
+
+  -- Put the list back where the player left it: the current row is the selection,
+  -- and the shift range keeps a running shift-select alive across the rebuild.
+  if selectedRow ~= nil then
+    leftTable:setSelectedRow(selectedRow)
+    -- First build, opened on a ship far down the list: the engine never moves the
+    -- top row to the selection, so an unscrolled list would hide it.
+    if menu.shipTopRow == nil then
+      local visible   = math.max(1, math.floor((scrollHeight(Helper.frameBorder) - beforeShips) / menu.measuredPitch))
+      local firstShip = #leftTable.rows - #rows + 1
+      if (selectedRow - firstShip + 1) > visible then
+        menu.shipTopRow = selectedRow - visible + 1
+      end
+    end
+  end
+  if menu.shipTopRow ~= nil then
+    leftTable:setTopRow(menu.shipTopRow)
+  end
+  if multi and (menu.shipShift ~= nil) then
+    leftTable:setShiftStartEnd(menu.shipShift[1], menu.shipShift[2])
+  end
 end
 
 function menu.createRightPanel(x, width)

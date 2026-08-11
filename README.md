@@ -27,6 +27,8 @@ Right-click any player-owned ship or station and pick **Trade Analyzer**.
 
 Opening it on a ship preselects that ship. Opening it on a station preselects that station as the parent-station filter, so you immediately see just the ships assigned to it.
 
+A ship is picked by making its row the current one in the list on the left, exactly like the object list on the map. **Profit over Time** draws several ships at once, so there the list works like the map's as well: ctrl-click adds or removes a ship, shift-click takes a range, and a plain click goes back to a single one. Up to 8 lines are drawn - picking a ninth ship drops the one picked first.
+
 The data is read when the menu opens. Press **Refresh** to read it again after playing on.
 
 ## Settings
