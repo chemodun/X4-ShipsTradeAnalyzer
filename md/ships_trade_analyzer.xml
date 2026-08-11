@@ -6,8 +6,6 @@
     Ships Trade Analyzer - Options and interaction-menu integration.
 
     Config keys, all directly under player.entity.$ShipsTradeAnalyzerConfig:
-      $historyHours          - int 0..240 (slider): how far back to read the
-                               trade log; 0 means the whole recorded history
       $includeInternalTrades - bool (checkbox): default state of the menu's
                                internal-trade filter
       $debugLevel            - string: 'none' | 'debug' | 'trace'
@@ -27,7 +25,6 @@
         <library name="STA_Defaults" purpose="include_actions">
           <actions>
             <set_value name="$cfg" exact="table[
-              $historyHours          = 0,
               $includeInternalTrades = true,
               $debugLevel            = 'none',
             ]" />
@@ -47,7 +44,7 @@
         </library>
 
         <!-- =============== Options menu registration =============== -->
-        <cue name="STA_Register_Menu" instantiate="true" version="1">
+        <cue name="STA_Register_Menu" instantiate="true" version="2">
           <conditions>
             <event_cue_signalled cue="md.Simple_Menu_API.Reloaded" />
           </conditions>
@@ -77,7 +74,7 @@
         </cue>
 
         <!-- =============== Options menu open callback =============== -->
-        <cue name="STA_Options_Menu" instantiate="true" version="1">
+        <cue name="STA_Options_Menu" instantiate="true" version="2">
           <conditions>
             <event_cue_signalled />
           </conditions>
@@ -90,21 +87,6 @@
               </run_actions>
 
               <include_actions ref="md.Options_Helper.Add_Empty_Row" />
-
-              <!-- 0 reads the whole recorded history; anything else bounds the
-                   scan, which is what keeps a very long save responsive. -->
-              <run_actions ref="md.Options_Helper.Add_Slider">
-                <param name="id" value="'historyHours'" />
-                <param name="min" value="0" />
-                <param name="max" value="240" />
-                <param name="step" value="12" />
-                <param name="text" value="{1972092439, 90101}" />
-                <param name="suffix" value="' h'" />
-                <param name="colSpan" value="8" />
-                <param name="textColSpan" value="4" />
-                <param name="data" value="$cfg" />
-                <param name="handle" value="STA_HandleSlider" />
-              </run_actions>
 
               <run_actions ref="md.Options_Helper.Add_Checkbox">
                 <param name="id" value="'includeInternalTrades'" />
@@ -158,17 +140,6 @@
           <actions>
             <set_value name="$resultTable" exact="player.entity.$ShipsTradeAnalyzerConfig" />
             <include_actions ref="md.Options_Helper.Process_Checkbox_Changed" />
-            <remove_value name="$resultTable" />
-          </actions>
-        </cue>
-
-        <cue name="STA_HandleSlider" instantiate="true" version="1">
-          <conditions>
-            <event_cue_signalled />
-          </conditions>
-          <actions>
-            <set_value name="$resultTable" exact="player.entity.$ShipsTradeAnalyzerConfig" />
-            <include_actions ref="md.Options_Helper.Process_Slider_Changed" />
             <remove_value name="$resultTable" />
           </actions>
         </cue>

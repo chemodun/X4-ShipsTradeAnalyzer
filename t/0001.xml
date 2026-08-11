@@ -74,7 +74,6 @@
             <t id="1032">Number of Ships</t>
 
             <!-- Options page -->
-            <t id="90101">History Window \(0 = all\)</t>
             <t id="90102">Include Internal Trades by Default</t>
 
             <!-- Section: Debug (90900) -->

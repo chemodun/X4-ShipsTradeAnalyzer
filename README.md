@@ -35,7 +35,6 @@ The data is read when the menu opens. Press **Refresh** to read it again after p
 
 Found under Extension Options.
 
-- **History Window** - how far back to read the trade log, in hours. 0 reads the whole recorded history. Lower it if opening the menu feels slow on a very long save.
 - **Include Internal Trades by Default** - the starting state of the internal-trade filter in the menu.
 - **Debug Level** - None, Debug or Trace. Leave at None unless you are reporting a problem.
 

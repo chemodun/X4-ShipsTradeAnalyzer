@@ -354,9 +354,6 @@ function sta.scan()
   end
 
   local now = C.GetCurrentGameTime()
-  local cfg = sta.getConfig()
-  local historyHours = tonumber(cfg.historyHours) or 0
-  local startTime = (historyHours > 0) and math.max(0, now - historyHours * 3600) or 0
 
   sta.ships = {}
   sta.stations = {}
@@ -369,7 +366,7 @@ function sta.scan()
   for _, luaId in ipairs(objects) do
     if IsComponentClass(luaId, "ship") and not IsComponentClass(luaId, "spacesuit") then
       local ship = buildShip(luaId)
-      readShipLog(ship, startTime, now)
+      readShipLog(ship, 0, now)
       if #ship.tx > 0 then
         sta.ships[#sta.ships + 1] = ship
         if ship.stationIdcode ~= nil and not stationSeen[ship.stationIdcode] then
@@ -382,8 +379,7 @@ function sta.scan()
 
   table.sort(sta.stations, function(a, b) return a.name < b.name end)
   sta.scanned = true
-  debugLog("scan: %d trading ship(s), %d trade entries, window %s.",
-    #sta.ships, sta.totalEntries, (historyHours > 0) and (historyHours .. "h") or "full history")
+  debugLog("scan: %d trading ship(s), %d trade entries.", #sta.ships, sta.totalEntries)
 end
 
 function sta.ensureScanned()
