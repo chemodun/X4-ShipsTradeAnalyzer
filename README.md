@@ -19,6 +19,7 @@ Brings the analysis of [X4 Player Ship Trade Analyzer](https://www.nexusmods.com
 - **Sorting** of the ship list by name or by profit, with the filtered total shown above it.
 - **Reverse order** on the ranked views, to look at the bottom of the ranking instead of the top.
 - **No cut-off ranking**. The bar views fit as many bars as the screen has room for and page through the rest, so nothing is hidden behind a "top 25". The colour legend sits at the bottom of the screen and scrolls when it is long.
+- **Room for more bars**. The bar and cargo-load views hide the ship list on the left and show its count instead, since every row it draws is one a bar cannot have. Turn **Show Legend** off to reclaim its band at the bottom as well, and lower **Bar Detail** to put fewer bar tables side by side - each one costs a row per bar and buys 13 more colour segments.
 
 ## Usage
 

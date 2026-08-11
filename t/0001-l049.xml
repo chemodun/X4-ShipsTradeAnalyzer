@@ -52,6 +52,7 @@
             <t id="1007">Sortieren nach</t>
             <t id="1008">Name</t>
             <t id="1009">Gewinn</t>
+            <t id="1010">Legende anzeigen</t>
             <t id="1011">Umgekehrte Reihenfolge</t>
             <t id="1012">Aktualisieren</t>
             <t id="1013">Seite</t>
@@ -69,6 +70,8 @@
             <t id="1026">Bestwert</t>
             <t id="1029">Min</t>
             <t id="1030">Std</t>
+            <t id="1031">Balken-Detailgrad</t>
+            <t id="1032">Anzahl Schiffe</t>
 
             <!-- Options page -->
             <t id="90101">Verlaufsfenster \(0 = alles\)</t>

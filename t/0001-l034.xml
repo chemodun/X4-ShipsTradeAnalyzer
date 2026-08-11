@@ -52,6 +52,7 @@
             <t id="1007">Ordenar por</t>
             <t id="1008">Nombre</t>
             <t id="1009">Beneficio</t>
+            <t id="1010">Mostrar leyenda</t>
             <t id="1011">Orden inverso</t>
             <t id="1012">Actualizar</t>
             <t id="1013">Página</t>
@@ -69,6 +70,8 @@
             <t id="1026">Mejor</t>
             <t id="1029">min</t>
             <t id="1030">h</t>
+            <t id="1031">Detalle de barras</t>
+            <t id="1032">Número de naves</t>
 
             <!-- Options page -->
             <t id="90101">Ventana de historial \(0 = todo\)</t>

@@ -52,6 +52,7 @@
             <t id="1007">Ordina per</t>
             <t id="1008">Nome</t>
             <t id="1009">Profitto</t>
+            <t id="1010">Mostra legenda</t>
             <t id="1011">Ordine inverso</t>
             <t id="1012">Aggiorna</t>
             <t id="1013">Pagina</t>
@@ -69,6 +70,8 @@
             <t id="1026">Migliore</t>
             <t id="1029">min</t>
             <t id="1030">h</t>
+            <t id="1031">Dettaglio barre</t>
+            <t id="1032">Numero di navi</t>
 
             <!-- Options page -->
             <t id="90101">Finestra cronologica \(0 = tutto\)</t>

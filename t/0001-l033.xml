@@ -52,6 +52,7 @@
             <t id="1007">Trier par</t>
             <t id="1008">Nom</t>
             <t id="1009">Bénéfice</t>
+            <t id="1010">Afficher la légende</t>
             <t id="1011">Ordre inversé</t>
             <t id="1012">Actualiser</t>
             <t id="1013">Page</t>
@@ -69,6 +70,8 @@
             <t id="1026">Meilleur</t>
             <t id="1029">min</t>
             <t id="1030">h</t>
+            <t id="1031">Détail des barres</t>
+            <t id="1032">Nombre de vaisseaux</t>
 
             <!-- Options page -->
             <t id="90101">Fenêtre d'historique \(0 = tout\)</t>

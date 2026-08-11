@@ -52,6 +52,7 @@
             <t id="1007">Řadit podle</t>
             <t id="1008">Jméno</t>
             <t id="1009">Zisk</t>
+            <t id="1010">Zobrazit legendu</t>
             <t id="1011">Obrácené pořadí</t>
             <t id="1012">Obnovit</t>
             <t id="1013">Stránka</t>
@@ -69,6 +70,8 @@
             <t id="1026">Nejlepší</t>
             <t id="1029">min</t>
             <t id="1030">h</t>
+            <t id="1031">Detail pruhů</t>
+            <t id="1032">Počet lodí</t>
 
             <!-- Options page -->
             <t id="90101">Okno historie \(0 = vše\)</t>

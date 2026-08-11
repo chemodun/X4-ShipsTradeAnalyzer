@@ -52,6 +52,7 @@
             <t id="1007">Sıralama</t>
             <t id="1008">İsim</t>
             <t id="1009">Kâr</t>
+            <t id="1010">Açıklamayı göster</t>
             <t id="1011">Ters sıra</t>
             <t id="1012">Yenile</t>
             <t id="1013">Sayfa</t>
@@ -69,6 +70,8 @@
             <t id="1026">En iyi</t>
             <t id="1029">dk</t>
             <t id="1030">sa</t>
+            <t id="1031">Çubuk ayrıntısı</t>
+            <t id="1032">Gemi sayısı</t>
 
             <!-- Options page -->
             <t id="90101">Geçmiş penceresi \(0 = tümü\)</t>

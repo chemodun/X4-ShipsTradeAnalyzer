@@ -52,6 +52,7 @@
             <t id="1007">Sortuj wg</t>
             <t id="1008">Nazwa</t>
             <t id="1009">Zysk</t>
+            <t id="1010">Pokaż legendę</t>
             <t id="1011">Odwrotna kolejność</t>
             <t id="1012">Odśwież</t>
             <t id="1013">Strona</t>
@@ -69,6 +70,8 @@
             <t id="1026">Najlepszy</t>
             <t id="1029">min</t>
             <t id="1030">h</t>
+            <t id="1031">Szczegółowość pasków</t>
+            <t id="1032">Liczba statków</t>
 
             <!-- Options page -->
             <t id="90101">Okno historii \(0 = wszystko\)</t>

@@ -33,17 +33,33 @@ local menu = {
 
 local config = {
   infoLayer        = 4,
-  -- 0.34 cut by 30% in favour of the right panel.
-  leftPanelShare   = 0.238,
+  -- Share of the map's own left info panel width (menu_map's infoTableWidth).
+  leftPanelShare   = 0.8,
+  -- Vanilla's floor for that width, applied there the same way.
+  mapInfoMinWidth  = 400,
   -- A table cannot have more than 13 columns, so the bar of the ranked views is
-  -- spread over this many tables side by side: barTables * 13 - 2 segments.
+  -- spread over several tables side by side: barTables * 13 segments. Every table
+  -- spends a row of the frame's pool per item, so the Bar Detail slider trades
+  -- segments against rows per page.
   maxTableCols     = 13,
   barTables        = 2,
-  -- The widget system hands out table rows from a pool that is per frame, not
-  -- per table: past it rows are skipped ("No more table rows available") and the
-  -- tables allocated last are dropped whole. Kept below the observed 225.
-  maxFrameRows     = 210,
-  legendPairs      = 4,
+  barTablesMax     = 6,
+  -- Name column of the bar views and of Cargo Load: a share of the left panel,
+  -- not of the panel it sits in, so both read the same way whatever is next to it.
+  nameColShare     = 0.8,
+  -- Any sum column on a right panel table: as a share of a left panel width
+  sumColShare      = 0.3,
+  -- Cargo Load's Average and Best: a fixed width the value is known to fit, not a
+  -- share of a panel that could shrink under it. Unscaled px, run through
+  -- Helper.scaleX at use, so the cell takes scaling = false.
+  loadValueWidth   = 60,
+  -- The widget system hands out table rows from a shared pool - its own
+  -- config.tableRows.maxRows in widget_fullscreen.lua - and only the rows it
+  -- actually draws are taken from it. Past the pool rows are skipped ("No more
+  -- table rows available") and the tables allocated last are dropped whole.
+  enginePoolRows   = 170 - 5, -- 5 some other windows use, so the engine's pool is 165 for us
+  -- Two columns per pair, and a table is capped at maxTableCols.
+  legendPairs      = 6,
   -- Rows reserved for the legend at the bottom of the panel, whatever it holds.
   legendRows       = 5,
   maxGraphShips    = 8,
@@ -55,6 +71,7 @@ local config = {
     Color["graph_data_1"], Color["graph_data_2"], Color["graph_data_3"], Color["graph_data_4"],
     Color["graph_data_5"], Color["graph_data_6"], Color["graph_data_7"], Color["graph_data_8"],
   },
+  isV9 = C.GetGameVersion().major >= 9,
 }
 
 local modes = {
@@ -78,8 +95,19 @@ local cargoTypes = {
   { id = "gas",       text = 1023 },
 }
 
+-- The stacked-bar views: paged, and the only ones the bar tables belong to.
+local function isBarView(view)
+  return view == "shipsbywares" or view == "waresbyships"
+end
+
+-- Laid out to fit rather than scrolled, so the ship list is dropped for them:
+-- every row it draws is one the panel on the right cannot have.
 local function isRanked(view)
-  return view == "shipsbywares" or view == "waresbyships" or view == "cargoload"
+  return isBarView(view) or view == "cargoload"
+end
+
+local function hasLegend(view)
+  return isBarView(view) or view == "graph"
 end
 
 -- *** registration ***
@@ -113,6 +141,8 @@ local function resetState()
   menu.filter     = sta.defaultFilter()
   menu.sortBy     = "profit"
   menu.reverse    = false
+  menu.showLegend = true
+  menu.barTables  = config.barTables
   menu.page       = 1
   menu.pageCount  = 1
   menu.selectedShip = nil
@@ -414,6 +444,16 @@ function menu.toggleReverse(checked)
   refreshFromFirstPage()
 end
 
+function menu.toggleLegend(checked)
+  menu.showLegend = checked
+  refreshFromFirstPage()
+end
+
+-- The slider fires on every step, so only the confirmed value rebuilds the frame.
+function menu.setBarTables(value)
+  menu.barTables = math.max(1, math.min(config.barTablesMax, math.floor(value)))
+end
+
 function menu.setPage(page)
   menu.page = math.max(1, math.min(menu.pageCount, math.floor(page)))
   menu.refreshInfoFrame()
@@ -453,6 +493,14 @@ end
 
 -- *** frame ***
 
+-- The map's left info panel width. Its own menu.infoTableWidth is not reachable
+-- from here, so it is recomputed exactly as menu_map does it.
+local function mapInfoTableWidth()
+  local playerInfo = Helper.playerInfoConfig
+  return math.max(playerInfo.width - Helper.scaleX(Helper.sidebarWidth) - (config.isV9 and Helper.minorPanelSpacing or 2 * Helper.borderSize),
+    config.mapInfoMinWidth)
+end
+
 function menu.createFrame()
   Helper.clearDataForRefresh(menu, config.infoLayer)
 
@@ -467,9 +515,13 @@ function menu.createFrame()
   menu.infoFrame:setBackground("solid", { color = Color["frame_background_semitransparent"] })
 
   local usableWidth = Helper.viewWidth - 2 * Helper.frameBorder
-  local leftWidth   = Helper.round(usableWidth * config.leftPanelShare)
+  local leftWidth   = Helper.round(mapInfoTableWidth() * config.leftPanelShare)
   local rightX      = Helper.frameBorder + leftWidth + Helper.borderSize
   local rightWidth  = usableWidth - leftWidth - Helper.borderSize
+
+  -- The bar views and Cargo Load size their name column off this, not off their
+  -- own panel.
+  menu.leftPanelWidth = leftWidth
 
   menu.createLeftPanel(Helper.frameBorder, leftWidth)
   menu.createRightPanel(rightX, rightWidth)
@@ -523,10 +575,22 @@ end
 -- number of bar rows above it does not change from page to page. The legend
 -- itself is only as tall as it needs to be, pinned to the bottom of the panel.
 local function legendHeights(entryCount)
+  if not menu.showLegend then
+    return 0, 0
+  end
   local pitch    = rowPitch()
   local rows     = math.max(1, math.ceil(entryCount / config.legendPairs))
   local reserved = config.legendRows * pitch - Helper.borderSize
   return reserved, math.min(rows, config.legendRows) * pitch - Helper.borderSize
+end
+
+-- What the legend costs the frame's row pool: the rows it can show, not the rows
+-- it holds - the ones scrolled out of its box are never drawn and cost nothing.
+local function legendRowCount(entryCount)
+  if not menu.showLegend then
+    return 0
+  end
+  return math.min(math.ceil(entryCount / config.legendPairs), config.legendRows)
 end
 
 -- Bottom edge of the panel area: the frame fills the view, so its own border is
@@ -546,7 +610,16 @@ end
 -- Bottom edge left to the tables above the legend.
 local function contentBottom(legendEntryCount)
   local reserved = legendHeights(legendEntryCount)
+  if reserved <= 0 then
+    return panelBottom()
+  end
   return panelBottom() - reserved - Helper.borderSize
+end
+
+-- Rows a frame may actually claim: on a first draw the engine refuses to hand out
+-- its last element, keeping it for the mouse-over limbo row.
+local function poolBudget()
+  return config.enginePoolRows - 1
 end
 
 -- Rows that fit below the header, and the slice of items the current page shows.
@@ -563,7 +636,7 @@ local function pageLayout(itemCount, top, bottom, headerHeight, numTables, legen
   local perPage = math.max(1, math.floor(budget / pitch))
 
   -- Off the top: the panel title's own table and the pager, one row each.
-  local free   = config.maxFrameRows - (menu.leftRowCount or 0) - 2 - legendRows
+  local free   = poolBudget() - (menu.leftRowCount or 0) - 2 - legendRows
   local rowCap = math.max(1, math.floor(free / numTables))
   if rowCap < perPage then
     perPage = rowCap
@@ -632,6 +705,9 @@ end
 -- Rows are selectable because a table only scrolls once it can take the focus.
 local function createLegend(x, width, entries, tabOrder)
   local _, visible = legendHeights(#entries)
+  if visible <= 0 then
+    return
+  end
   local legend = menu.infoFrame:addTable(config.legendPairs * 2, {
     tabOrder = tabOrder, width = width, x = x,
     y = panelBottom() - visible,
@@ -751,6 +827,26 @@ function menu.createLeftPanel(x, width)
     row[2].handlers.onClick = function(_, checked) return menu.toggleReverse(checked) end
   end
 
+  -- Both of these buy rows for the panel on the right: the legend by giving up its
+  -- reserved band, the slider by putting fewer tables side by side.
+  if hasLegend(menu.view) then
+    row = leftTable:addRow(true, { fixed = true })
+    row[1]:createText(ReadText(PAGE, 1010), { halign = "left" })
+    createCenteredCheckBox(row[2]:setColSpan(3), menu.showLegend)
+    row[2].handlers.onClick = function(_, checked) return menu.toggleLegend(checked) end
+  end
+
+  if isBarView(menu.view) then
+    row = leftTable:addRow(true, { fixed = true })
+    row[1]:createText(ReadText(PAGE, 1031), { halign = "left" })
+    row[2]:setColSpan(3):createSliderCell({
+      height = Helper.standardButtonHeight,
+      min = 1, max = config.barTablesMax, start = menu.barTables, step = 1,
+    })
+    row[2].handlers.onSliderCellChanged = function(_, value) return menu.setBarTables(value) end
+    row[2].handlers.onSliderCellConfirm = function() return refreshFromFirstPage() end
+  end
+
   row = leftTable:addRow(true, { fixed = true })
   row[1]:setColSpan(4):createButton({}):setText(ReadText(PAGE, 1012), { halign = "center" })
   row[1].handlers.onClick = function() return menu.buttonRefresh() end
@@ -779,6 +875,19 @@ function menu.createLeftPanel(x, width)
   -- Ship rows are plain text rows, so what the engine makes of them is the pitch
   -- the paged views on the right are laid out with.
   local beforeShips = leftTable:getFullHeight()
+
+  -- The paged views need every row the pool can spare, so the list gives way to
+  -- its own count there - one plain text row, which is also the pitch probe.
+  if isRanked(menu.view) then
+    row = leftTable:addRow(false, {})
+    row[1]:setColSpan(3):createText(ReadText(PAGE, 1032), { halign = "left" })
+    row[4]:createText(tostring(#rows), { halign = "right" })
+    menu.measuredPitch = leftTable:getFullHeight() - beforeShips
+    menu.leftRowCount  = #leftTable.rows
+    sta.traceLog("rowPitch: measured %d over 1 count row, %d left panel row(s).",
+      menu.measuredPitch, menu.leftRowCount)
+    return
+  end
 
   for _, entry in ipairs(rows) do
     local idcode = entry.ship.idcode
@@ -1027,7 +1136,7 @@ end
 
 -- Horizontal stacked bar built from background-coloured cells: the only way to
 -- get a segmented bar out of the X4 table widget, which has no bar chart. A table
--- is capped at 13 columns, so the bar is spread over config.barTables tables put
+-- is capped at 13 columns, so the bar is spread over menu.barTables tables put
 -- side by side; every row exists in all of them, which keeps the rows aligned.
 --
 -- None of those tables is meant to scroll - they cannot be kept in sync - so as
@@ -1061,11 +1170,11 @@ function menu.createRankedPanel(x, width, groupBy)
     maxTotal = 1
   end
 
-  local numBars   = math.max(1, config.barTables)
+  local numBars   = math.max(1, menu.barTables or config.barTables)
   local cols      = config.maxTableCols
   local segments  = numBars * cols
-  local labelWidth = math.floor(width * 0.3)
-  local totalWidth = math.floor(width * 0.18)
+  local labelWidth = math.floor(menu.leftPanelWidth * config.nameColShare)
+  local totalWidth = math.floor(menu.leftPanelWidth * config.sumColShare)
   -- Inner borders of the bar tables, the one inside the label table, and a gap
   -- in front of every bar table.
   local borders   = (numBars * (cols - 1) + numBars + 1) * Helper.borderSize
@@ -1126,7 +1235,7 @@ function menu.createRankedPanel(x, width, groupBy)
   -- No table carries a header of its own any more, so the rows start right below
   -- the title table.
   local layout = pageLayout(#groups, dataY, bottom, 0,
-    numBars + 1, math.ceil(#legendEntries / config.legendPairs))
+    numBars + 1, legendRowCount(#legendEntries))
 
   for i = layout.first, layout.last do
     local g = groups[i]
@@ -1178,11 +1287,18 @@ function menu.createRankedPanel(x, width, groupBy)
 
   -- Ground truth for both budgets: height against the space pageLayout counted,
   -- and the rows this frame asks the pool for.
-  local pageRows = layout.last - layout.first + 1
+  local pageRows  = layout.last - layout.first + 1
+  local fixedRows = (menu.leftRowCount or 0) + 2 + legendRowCount(#legendEntries)
+  local frameRows = fixedRows + (numBars + 1) * pageRows
   sta.traceLog("rankedPanel: table height %d, budget %d, %d frame row(s) of %d.",
     labelTable:getFullHeight(), bottom - dataY - pagerHeight() - Helper.borderSize,
-    (menu.leftRowCount or 0) + (numBars + 1) * pageRows + 2
-    + math.ceil(#legendEntries / config.legendPairs), config.maxFrameRows)
+    frameRows, poolBudget())
+  -- pageLayout counts against the same budget, so this can only mean the count is
+  -- off somewhere - past the pool the tables created last lose their rows silently.
+  if frameRows > poolBudget() then
+    sta.debugLog("rankedPanel: %d row(s) requested, pool budget is %d - rows will be skipped.",
+      frameRows, poolBudget())
+  end
 
   createPager(x, width, bottom, 4 + numBars)
   createLegend(x, width, legendEntries, 5 + numBars)
@@ -1202,9 +1318,10 @@ function menu.createCargoLoadPanel(x, width)
     maxVisibleHeight = scrollHeight(Helper.frameBorder),
     backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
   })
-  t:setColWidth(1, Helper.round(width * 0.34), false)
-  t:setColWidth(3, Helper.round(width * 0.12), false)
-  t:setColWidth(4, Helper.round(width * 0.12), false)
+  local valueWidth = Helper.scaleX(config.loadValueWidth)
+  t:setColWidth(1, math.floor((menu.leftPanelWidth or width) * config.nameColShare), false)
+  t:setColWidth(3, valueWidth, false)
+  t:setColWidth(4, valueWidth, false)
 
   local row = t:addRow(false, { fixed = true, bgColor = Color["row_title_background"] })
   row[1]:setColSpan(4):createText(ReadText(PAGE, 106), Helper.titleTextProperties)

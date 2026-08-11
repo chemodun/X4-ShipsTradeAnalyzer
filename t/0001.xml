@@ -52,6 +52,7 @@
             <t id="1007">Sort By</t>
             <t id="1008">Name</t>
             <t id="1009">Profit</t>
+            <t id="1010">Show Legend</t>
             <t id="1011">Reverse Order</t>
             <t id="1012">Refresh</t>
             <t id="1013">Page</t>
@@ -69,6 +70,8 @@
             <t id="1026">Best</t>
             <t id="1029">min</t>
             <t id="1030">h</t>
+            <t id="1031">Bar Detail</t>
+            <t id="1032">Number of Ships</t>
 
             <!-- Options page -->
             <t id="90101">History Window \(0 = all\)</t>
