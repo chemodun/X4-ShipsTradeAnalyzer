@@ -348,10 +348,12 @@ local function loadPercent(ship, wareId, ware, used)
   return math.min(100, used / capacity * 100)
 end
 
--- The previous stop of the whole log, not of a filtered view: the route flown.
-local function linkPrevSectors(ship)
+-- What it took to reach each stop - gates and time both - measured against the
+-- previous stop of the whole log, not of a filtered view: the route flown.
+local function linkPrevious(ship)
   for i = 2, #ship.tx do
     ship.tx[i].prevSecMacro = ship.tx[i - 1].pSecMacro
+    ship.tx[i].duration = math.max(0, ship.tx[i].t - ship.tx[i - 1].t)
   end
 end
 
@@ -617,6 +619,8 @@ function sta.retimeInjected()
       end
     end
     if shipMoved > 0 then
+      -- A moved entry changes the gap either side of it.
+      linkPrevious(ship)
       ship.trades = nil
       moved = moved + shipMoved
     end
@@ -693,7 +697,7 @@ function sta.scan()
       if sta.injectInternal and ship.stationId ~= nil then
         injectForShip(ship)
       end
-      linkPrevSectors(ship)
+      linkPrevious(ship)
       sta.ships[#sta.ships + 1] = ship
       if #ship.tx > 0 then
         tradingShips = tradingShips + 1

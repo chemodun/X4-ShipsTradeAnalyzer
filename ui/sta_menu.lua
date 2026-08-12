@@ -1302,29 +1302,32 @@ function menu.createTradesPanel(x, width)
     row[5]:createText(sta.formatMoney(trade.revenue), { halign = "right" })
     row[6]:createText(sta.formatMoney(trade.profit),
       { halign = "right", color = (trade.profit >= 0) and Color["text_positive"] or Color["text_negative"] })
-    row[7]:createText(sta.formatDuration(trade.duration), { halign = "right" })
+    row[7]:createText(trade.duration and sta.formatDuration(trade.duration) or "-", { halign = "right" })
     -- A dash, not a zero: the graph may not be loaded, or the route unreachable.
     local jumps = staTrades.jumpsOf(trade)
     row[8]:createText(jumps and tostring(jumps) or "-", { halign = "right" })
     row[9]:createText(string.format("%.0f%%", trade.load), { halign = "right" })
 
     if menu.expanded[key] then
-      -- A leg lines up under the trade row: station in the ware column, then
-      -- operation / volume / price under the three sums.
-      local function legRow(leg, isSale)
+      -- A leg lines up under the trade row.
+      local function legRow(leg)
+        local tx = leg.tx
         local legrow = t:addRow(false, { bgColor = Color["row_background_unselectable"] })
-        legrow[2]:createText(sta.formatAgo(leg.t), { halign = "right" })
+        legrow[2]:createText(sta.formatAgo(tx.t), { halign = "right" })
         createStationCell(legrow[3], {
-          name = leg.station, sector = leg.sector, owner = leg.owner,
-          sectorOwner = leg.sectorOwner, icon = leg.icon,
+          name = tx.pName, sector = tx.pSector, owner = tx.pOwner,
+          sectorOwner = tx.pSecOwner, icon = tx.pIcon,
         })
-        legrow[4]:createText(ReadText(PAGE, isSale and 1019 or 1018),
-          { halign = "center", color = isSale and Color["text_positive"] or Color["text_negative"] })
+        legrow[4]:createText(ReadText(PAGE, tx.sale and 1019 or 1018),
+          { halign = "center", color = tx.sale and Color["text_positive"] or Color["text_negative"] })
         legrow[5]:createText(tostring(leg.vol), { halign = "right" })
-        legrow[6]:createText(sta.formatPrice(leg.price), { halign = "right" })
+        legrow[6]:createText(sta.formatPrice(tx.price), { halign = "right" })
+        legrow[7]:createText(tx.duration and sta.formatDuration(tx.duration) or "-", { halign = "right" })
+        legrow[8]:createText(tx.jumps and tostring(tx.jumps) or "-", { halign = "right" })
+        legrow[9]:createText(string.format("%.0f%%", tx.load), { halign = "right" })
       end
-      for _, leg in ipairs(trade.purchases) do legRow(leg, false) end
-      for _, leg in ipairs(trade.sales) do legRow(leg, true) end
+      for _, leg in ipairs(trade.purchases) do legRow(leg) end
+      for _, leg in ipairs(trade.sales) do legRow(leg) end
     end
   end
 

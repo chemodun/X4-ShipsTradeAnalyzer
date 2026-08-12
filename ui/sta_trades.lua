@@ -7,48 +7,26 @@
 
 ---@diagnostic disable-next-line: unresolved-require
 local sta = require("extensions.ships_trade_analyzer.ui.sta_data")
----@diagnostic disable-next-line: unresolved-require
-local staGraph = require("extensions.ships_trade_analyzer.ui.sta_graph")
 
 local staTrades = {}
 
+-- A leg is the source transaction.
 local function makeLeg(tx, volume)
-  return {
-    t       = tx.t,
-    vol     = volume,
-    price   = tx.price,
-    station    = tx.pName,
-    sector     = tx.pSector,
-    sectorOwner = tx.pSecOwner,
-    sectorMacro = tx.pSecMacro,
-    owner      = tx.pOwner,
-    icon       = tx.pIcon,
-  }
+  return { tx = tx, vol = volume }
 end
 
--- Hops summed along the legs in time order; a segment never interleaves, so
--- purchases then sales is the route flown. nil on any unresolvable pair, never a
--- partial sum.
-local function chainJumps(purchases, sales)
-  local total = 0
-  local previous ---@type string?
+-- The trade's own transactions summed.
+local function sumOverLegs(purchases, sales, field)
+  local total ---@type number?
   for _, legs in ipairs({ purchases, sales }) do
     for _, leg in ipairs(legs) do
-      local macro = leg.sectorMacro
-      if macro == nil or macro == "" then
-        return nil
+      local value = leg.tx[field]
+      if value ~= nil then
+        total = (total or 0) + value
       end
-      if previous ~= nil then
-        local hops = staGraph.getJumps(previous, macro)
-        if hops == nil then
-          return nil
-        end
-        total = total + hops
-      end
-      previous = macro
     end
   end
-  return previous ~= nil and total or nil
+  return total
 end
 
 local function buildForShip(ship)
@@ -82,7 +60,7 @@ local function buildForShip(ship)
           end
           table.insert(kept, 1, purchases[i])
           bought = bought + purchases[i].vol
-          cost = cost + purchases[i].vol * purchases[i].price
+          cost = cost + purchases[i].vol * purchases[i].tx.price
         end
         if bought ~= trade.sold then
           reset()
@@ -91,7 +69,7 @@ local function buildForShip(ship)
         purchases = kept
         trade.bought = bought
         trade.buyCost = cost
-        trade.startTime = purchases[1].t
+        trade.startTime = purchases[1].tx.t
       end
 
       if trade.bought == trade.sold then
@@ -103,7 +81,8 @@ local function buildForShip(ship)
         trade.purchases = purchases
         trade.sales     = sales
         trade.profit    = trade.revenue - trade.buyCost
-        trade.duration  = math.max(0, trade.endTime - trade.startTime)
+        -- Summed like the jumps, so it counts the run in to the first buy too.
+        trade.duration  = sumOverLegs(purchases, sales, "duration")
         trade.load      = (maxQuantity > 0) and math.min(100, trade.bought / maxQuantity * 100) or 100
         trades[#trades + 1] = trade
       end
@@ -165,7 +144,7 @@ end
 -- a trade paired before it loaded would keep a nil forever.
 function staTrades.jumpsOf(trade)
   if trade.jumps == nil then
-    trade.jumps = chainJumps(trade.purchases, trade.sales)
+    trade.jumps = sumOverLegs(trade.purchases, trade.sales, "jumps")
   end
   return trade.jumps
 end
