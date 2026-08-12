@@ -40,6 +40,7 @@
             <t id="131">Vendido</t>
             <t id="132">Beneficio</t>
             <t id="133">Duración</t>
+            <t id="134">Saltos</t>
 
             <!-- menu -->
             <t id="1000">Analizador de comercio de naves</t>
@@ -75,6 +76,7 @@
             <t id="1033">Con transacciones</t>
 
             <!-- Options page -->
+            <t id="90101">Intervalo de actualización de datos</t>
             <t id="90102">Incluir operaciones internas por defecto</t>
 
             <!-- Section: Debug (90900) -->

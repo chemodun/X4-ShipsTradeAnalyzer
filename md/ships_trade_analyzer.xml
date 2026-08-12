@@ -3,15 +3,16 @@
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xsi:noNamespaceSchemaLocation="../../libraries/md.xsd">
   <!--
-    Ships Trade Analyzer - Options and interaction-menu integration.
+    Ships Trade Analyzer - Options, sector graph and interaction-menu integration.
 
-    Config keys, all directly under player.entity.$ShipsTradeAnalyzerConfig:
-      $includeInternalTrades - bool (checkbox): default state of the menu's
-                               internal-trade filter
-      $debugLevel            - string: 'none' | 'debug' | 'trace'
+    Config keys under player.entity.$ShipsTradeAnalyzerConfig:
+      $includeInternalTrades  - bool: default state of the internal-trade filter
+      $rescanIntervalMinutes  - int 0-10: how stale a scan may be before an open
+                                re-reads the log; 0 = always
+      $debugLevel             - 'none' | 'debug' | 'trace'
 
-    There is no collection timer and no stored data: the trade log is the
-    engine's own, read on demand by ui/sta_data.lua.
+    No collection timer and no stored trade data: the trade log is the engine's own,
+    read on demand by ui/sta_data.lua.
   -->
 
   <cues>
@@ -26,13 +27,13 @@
           <actions>
             <set_value name="$cfg" exact="table[
               $includeInternalTrades = true,
+              $rescanIntervalMinutes = 1,
               $debugLevel            = 'none',
             ]" />
           </actions>
         </library>
 
-        <!-- Sets $debugChance (100 unless debugLevel is 'none') and $traceChance
-             (100 only at 'trace'). Caller must remove_value both when done. -->
+        <!-- Sets $debugChance and $traceChance; the caller removes both when done. -->
         <library name="STA_ReadDebugChances" purpose="include_actions">
           <actions>
             <set_value name="$staDebugLevel" exact="if @player.entity.$ShipsTradeAnalyzerConfig.$debugLevel != null
@@ -43,8 +44,58 @@
           </actions>
         </library>
 
+        <!-- =============== Sector gate graph ===============
+             Lua has no gate-hop call, so the galaxy's directed sector adjacency is
+             published to player.entity.$ShipsTradeAnalyzerGraph and ui/sta_graph.lua
+             runs the BFS. No knownness filter: a trade's endpoints are in the log
+             whether or not the player ever flew there. Adjacency only, never the
+             distance matrix - ~400 edges against ~23000 pairs. -->
+        <library name="STA_BuildSectorGraph" purpose="include_actions">
+          <actions>
+            <!-- Wall clock: the build runs inside one frame, so game time cannot measure it. -->
+            <set_value name="$staStarted" exact="player.systemtime.{'%H:%M:%S'}" />
+            <find_sector name="$staSectors" multiple="true" space="player.galaxy" />
+            <create_list name="$staEdges" />
+            <do_for_each name="$staSector" in="$staSectors">
+              <find_sector_in_range distances="$staHops" object="$staSector" maxdistance="1" multiple="true" />
+              <!-- .keys is not a list by itself; .list is the enumerable form -->
+              <do_for_each name="$staOther" in="$staHops.keys.list">
+                <!-- The source sector is in its own result at distance 0 -->
+                <do_if value="$staOther != $staSector">
+                  <!-- One direction only: a lone superhighway link is not symmetric -->
+                  <append_to_list name="$staEdges"
+                    exact="table[$from = $staSector.macro, $to = $staOther.macro]" />
+                </do_if>
+              </do_for_each>
+              <remove_value name="$staHops" />
+            </do_for_each>
+            <set_value name="player.entity.$ShipsTradeAnalyzerGraph" exact="$staEdges" />
+            <debug_text text="'[STA]: sector graph built - %s sectors, %s directed edges, started %s, finished %s.'.[
+              $staSectors.count, $staEdges.count, $staStarted, player.systemtime.{'%H:%M:%S'}]"
+              chance="$debugChance" filter="scripts" />
+            <remove_value name="$staStarted" />
+            <remove_value name="$staSectors" />
+            <remove_value name="$staEdges" />
+            <raise_lua_event name="'ShipsTradeAnalyzer.SectorGraphReady'" />
+          </actions>
+        </library>
+
+        <!-- The only builder: ui/sta_graph.lua asks on every game load, since a
+             saved graph predates whatever gate that load unlocks. -->
+        <cue name="STA_Graph_Request" instantiate="true" version="2">
+          <conditions>
+            <event_ui_triggered screen="'ShipsTradeAnalyzer'" control="'requestSectorGraph'" />
+          </conditions>
+          <actions>
+            <include_actions ref="STA_ReadDebugChances" />
+            <include_actions ref="STA_BuildSectorGraph" />
+            <remove_value name="$debugChance" />
+            <remove_value name="$traceChance" />
+          </actions>
+        </cue>
+
         <!-- =============== Options menu registration =============== -->
-        <cue name="STA_Register_Menu" instantiate="true" version="2">
+        <cue name="STA_Register_Menu" instantiate="true" version="3">
           <conditions>
             <event_cue_signalled cue="md.Simple_Menu_API.Reloaded" />
           </conditions>
@@ -74,7 +125,7 @@
         </cue>
 
         <!-- =============== Options menu open callback =============== -->
-        <cue name="STA_Options_Menu" instantiate="true" version="2">
+        <cue name="STA_Options_Menu" instantiate="true" version="3">
           <conditions>
             <event_cue_signalled />
           </conditions>
@@ -95,6 +146,20 @@
                 <param name="text" value="{1972092439, 90102}" />
                 <param name="data" value="$cfg" />
                 <param name="handle" value="STA_HandleCheckbox" />
+              </run_actions>
+
+              <!-- 0 re-reads the trade log on every menu open -->
+              <run_actions ref="md.Options_Helper.Add_Slider">
+                <param name="id" value="'rescanIntervalMinutes'" />
+                <param name="min" value="0" />
+                <param name="max" value="10" />
+                <param name="step" value="1" />
+                <param name="text" value="{1972092439, 90101}" />
+                <param name="suffix" value="' %s'.[{1001, 103}]" />
+                <param name="colSpan" value="6" />
+                <param name="textColSpan" value="6" />
+                <param name="data" value="$cfg" />
+                <param name="handle" value="STA_HandleSlider" />
               </run_actions>
 
               <!-- Section: Debug -->
@@ -144,6 +209,17 @@
           </actions>
         </cue>
 
+        <cue name="STA_HandleSlider" instantiate="true" version="1">
+          <conditions>
+            <event_cue_signalled />
+          </conditions>
+          <actions>
+            <set_value name="$resultTable" exact="player.entity.$ShipsTradeAnalyzerConfig" />
+            <include_actions ref="md.Options_Helper.Process_Slider_Changed" />
+            <remove_value name="$resultTable" />
+          </actions>
+        </cue>
+
         <cue name="STA_HandleDropdown" instantiate="true" version="1">
           <conditions>
             <event_cue_signalled />
@@ -160,9 +236,8 @@
         </cue>
 
         <!-- =============== Interaction menu entry ===============
-             Re-registered on every interact menu open, per Interact_Menu_API
-             convention. A station opens the analyzer filtered to its own
-             subordinates; a ship opens it preselected. -->
+             Re-registered on every interact menu open, per Interact_Menu_API. A
+             station opens filtered to its subordinates, a ship preselected. -->
         <cue name="STA_Add_Interact_Action" instantiate="true" version="1">
           <conditions>
             <event_cue_signalled cue="md.Interact_Menu_API.Get_Actions" />

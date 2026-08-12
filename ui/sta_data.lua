@@ -1,16 +1,14 @@
 -- Ships Trade Analyzer - data layer.
 --
--- Reads the engine's own trade log per player-owned ship (C.GetTransactionLog)
--- and turns it into per-ship transaction lists plus the aggregates the menu
--- views need. Nothing is sampled or persisted -- the log already lives in the
--- save; this module only ever reads it.
+-- Reads the engine's trade log per player-owned ship and turns it into per-ship
+-- transaction lists plus the aggregates the menu views need. Nothing is sampled
+-- or persisted; the log already lives in the save.
 --
--- TransactionLogEntry, StorageInfo, GetNumTransactionLog, GetTransactionLog,
--- GetNumCargoTransportTypes and GetCargoTransportTypes are all declared by
--- vanilla (ego_detailmonitorhelper/helper.lua, ego_detailmonitor/menu_map.lua)
--- with identical layouts in 8.00 and 9.00, so they are used from the shared
--- ffi namespace rather than re-declared here.
+-- The transaction-log and cargo entry points and their structs are declared by
+-- vanilla with identical layouts in 8.00 and 9.00, so they are taken from the
+-- shared ffi namespace rather than re-declared here.
 
+---@diagnostic disable-next-line: unresolved-require
 local ffi = require("ffi")
 local C   = ffi.C
 
@@ -24,14 +22,14 @@ ffi.cdef [[
 local sta = {
   playerId   = nil,
   debugLevel = "none",
-  -- Set false at init if the engine no longer exposes the trade-log API under
-  -- the names vanilla declares; every scan then no-ops instead of erroring.
+  -- False if the borrowed vanilla names are gone; every scan then no-ops.
   available  = false,
 
   ships       = {},  -- array of ship records, see buildShip()
   wareCache   = {},  -- [wareId] = { name, transport, volume, avgprice }
   sectorOwner = {},  -- [sectorid] = owner faction id, "" when unowned
-  widestWareName = "", -- measured once at init, "" if the ware list was unreadable
+  sectorMacro = {},  -- [sectorid] = macro name, the key sta_graph joins on
+  widestWareName = "", -- "" if the ware list was unreadable at init
 
   scanTime      = 0, -- game time the last scan ran at
   scanned       = false,
@@ -40,20 +38,17 @@ local sta = {
 }
 
 local config = {
-  -- Per-ship hard cap on kept trade entries. A ship past this is still listed
-  -- with its aggregates, but its oldest entries are dropped so a decades-long
-  -- save cannot blow the UI Lua heap.
+  -- Oldest entries past this are dropped, so a long save cannot blow the Lua heap.
   maxEntriesPerShip = 5000,
-  -- Wares the engine reports without a usable per-unit volume against ship
-  -- capacity; their load percentage is meaningless, so it reads as full.
+  -- No usable per-unit volume against ship capacity, so their load reads as full.
   fullLoadWares = { rawscrap = true },
-  -- Transports a ship can actually carry, and so the only names the Ware column
-  -- has to fit.
+  -- The only transports a ship carries, and so the only names the Ware column fits.
   wareColumnTransports = { container = true, solid = true, liquid = true, gas = true },
+  -- Fallback for a missing Options key; 0 means rescan on every menu open.
+  rescanIntervalMinutes = 1,
 }
 
 -- *** debug helpers ***
--- Lazy formatting: args are only expanded once the level allows output.
 
 local function debugLog(fmt, ...)
   if sta.debugLevel ~= "none" then
@@ -92,8 +87,8 @@ end
 
 -- *** formatting (local: both vanilla equivalents are 9.00-only) ***
 
--- Vanilla's tiered time formats. The tier is picked on the seconds, never on the
--- rendered string: two tiers that match in English need not in another language.
+-- The tier is picked on the seconds, never on the rendered string: two tiers that
+-- match in English need not in another language.
 local function formatTiered(seconds, below1h, below1d, above1d)
   seconds = math.max(0, math.floor(tonumber(seconds) or 0))
   local id
@@ -107,12 +102,12 @@ local function formatTiered(seconds, below1h, below1d, above1d)
   return ConvertTimeString(seconds, ReadText(1001, id))
 end
 
--- A span, the tiers Helper.getPassedTimeShort uses.
+-- A span; the tiers Helper.getPassedTimeShort uses.
 function sta.formatDuration(seconds)
   return formatTiered(seconds, 210, 207, 205)
 end
 
--- Time since, the tiers Helper.getPassedTime uses - these carry vanilla's "ago".
+-- Time since; Helper.getPassedTime's tiers, which carry vanilla's "ago".
 function sta.formatAgo(t, now)
   return formatTiered((now or sta.scanTime) - t, 213, 212, 211)
 end
@@ -121,7 +116,17 @@ function sta.formatMoney(value)
   return ConvertMoneyString(math.floor(value + 0.5), false, true, 0, true) .. " " .. ReadText(1001, 101)
 end
 
--- Owner's faction colour as a colour table; iconString converts it for inline use.
+-- A per-unit price is in hundredths of a credit; 1001,105 is the decimal point,
+-- which is a comma in several languages.
+function sta.formatPrice(value)
+  local cents = math.floor(math.abs(value) * 100 + 0.5)
+  local whole = math.floor(cents / 100)
+  return ((value < 0) and "-" or "") ..
+      ConvertMoneyString(whole, false, true, 0, true) ..
+      ReadText(1001, 105) .. string.format("%02d", cents - whole * 100) ..
+      " " .. ReadText(1001, 101)
+end
+
 function sta.factionColor(owner)
   if owner == nil or owner == "" then
     return nil
@@ -164,8 +169,8 @@ end
 
 -- *** ship metadata ***
 
--- Ordered largest-first; IsComponentClass is the only reliable way to get a
--- ship's size class ("class" is not a GetComponentData key).
+-- Largest first; IsComponentClass is the only way to a size class, "class" is not
+-- a GetComponentData key.
 sta.shipClasses = { "ship_xl", "ship_l", "ship_m", "ship_s" }
 
 local classLetters = {
@@ -201,11 +206,8 @@ local function cargoCapacities(id64)
   return caps
 end
 
--- Station the ship reports to, walked up the commander chain: a subordinate of
--- a fleet led by a station-based commander still belongs to that station.
--- The depth cap guards against a malformed cycle, not against deep fleets.
--- Returns the station as a UniverseID - the same form buyerid/sellerid arrive in,
--- so a relation is a direct comparison - plus what its display name needs.
+-- Station the ship reports to, up the commander chain. Returns it as a UniverseID,
+-- the form buyerid/sellerid arrive in, so a relation is a direct comparison.
 local function parentStation(luaId, label)
   local tracing = sta.debugLevel == "trace"
   local current = GetCommander(luaId)
@@ -217,7 +219,7 @@ local function parentStation(luaId, label)
       return nil, nil, nil
     end
     local isStation = IsComponentClass(current, "station")
-    -- The lookup is only paid for when it is the answer, or when trace asked.
+    -- Only paid for when it is the answer, or when trace asked.
     if isStation or tracing then
       local name, idcode, classId = GetComponentData(current, "name", "idcode", "classid")
       if tracing then
@@ -236,7 +238,7 @@ local function parentStation(luaId, label)
   return nil, nil, nil
 end
 
--- Faction holding a sector, which is not the station's own owner. Cached: the
+-- Faction holding the sector, which is not the station's own owner. Cached: the
 -- scan walks tens of thousands of transactions over a handful of sectors.
 local function sectorOwnerOf(sectorId)
   if sectorId == nil or sectorId == 0 then
@@ -250,14 +252,27 @@ local function sectorOwnerOf(sectorId)
   return owner
 end
 
+-- The string MD's $sector.macro produces, and so the only key sta_graph can join
+-- on. Cached like the owner above.
+local function sectorMacroOf(sectorId)
+  if sectorId == nil or sectorId == 0 then
+    return ""
+  end
+  local macro = sta.sectorMacro[sectorId]
+  if macro == nil then
+    macro = GetComponentData(sectorId, "macro") or ""
+    sta.sectorMacro[sectorId] = macro
+  end
+  return macro
+end
+
 -- *** counterpart resolution ***
---
--- The trade entry names both sides; the counterpart is simply whichever of
--- buyerid/sellerid is not this ship. Falls back to the entry's own partner
--- name/idcode strings when the component is gone, so a trade with a destroyed
--- station still reads sensibly.
+
+-- Whichever side of the entry is not this ship. Falls back to the entry's own
+-- partner strings when the component is gone, so a destroyed station still reads.
 local function counterpartInfo(otherId, entryPartnerName, entryPartnerIdcode)
-  local info = { name = "", idcode = "", owner = "", sector = "", sectorOwner = "", icon = "", luaId = nil }
+  local info = { name = "", idcode = "", owner = "", sector = "", sectorOwner = "",
+    sectorMacro = "", icon = "", luaId = nil }
   if otherId ~= nil and otherId ~= 0 and C.IsComponentOperational(otherId) then
     local luaId = ConvertStringToLuaID(tostring(otherId))
     local name, idcode, owner, sector, sectorId, icon =
@@ -269,6 +284,7 @@ local function counterpartInfo(otherId, entryPartnerName, entryPartnerIdcode)
     info.sector = sector or ""
     info.icon   = icon or ""
     info.sectorOwner = sectorOwnerOf(sectorId)
+    info.sectorMacro = sectorMacroOf(sectorId)
   end
   if info.name == "" then
     info.name   = entryPartnerName or ""
@@ -289,10 +305,8 @@ end
 
 -- *** scanning ***
 
--- Estimated profit, mirroring X4PlayerShipTradeAnalyzer: for container wares
--- the reference is the ware's average price, so a purchase below average
--- already books profit; anything not shipped in containers (mined ore, gas,
--- liquids) has no meaningful purchase reference, so the sale sum is the profit.
+-- Container wares are measured against the ware's average price, so a purchase
+-- below it already books profit. Mined goods have no such reference: the sale is.
 local function estimateProfit(ware, isSale, sum, volume)
   if ware.transport == "container" then
     local reference = ware.avgprice * volume
@@ -314,8 +328,7 @@ local function readShipLog(ship, startTime, endTime)
   local buf = ffi.new("TransactionLogEntry[?]", total)
   total = tonumber(C.GetTransactionLog(buf, total, id64, startTime, endTime)) or 0
 
-  -- Oldest entries are dropped first, so a capped ship still shows its most
-  -- recent trading rather than an arbitrary early slice.
+  -- Oldest first, so a capped ship still shows its most recent trading.
   local firstIndex = 0 ---@type number
   if total > config.maxEntriesPerShip then
     firstIndex = total - config.maxEntriesPerShip
@@ -333,8 +346,8 @@ local function readShipLog(ship, startTime, endTime)
         if amount > 0 and price > 0 then
           local money    = (tonumber(buf[i].money) or 0) / 100
           local sellerId = buf[i].sellerid
-          -- Same test vanilla uses in Helper.createTransactionLog: trust the
-          -- explicit seller id, fall back to the sign of the money change.
+          -- Helper.createTransactionLog's test: trust an explicit seller id, else
+          -- the sign of the money change.
           local isSale = (sellerId ~= 0 and sellerId == id64) or (sellerId == 0 and money >= 0)
           local otherId = isSale and buf[i].buyerid or sellerId
           local partner = counterpartInfo(otherId,
@@ -365,6 +378,7 @@ local function readShipLog(ship, startTime, endTime)
             pOwner   = partner.owner,
             pSector  = partner.sector,
             pSecOwner = partner.sectorOwner,
+            pSecMacro = partner.sectorMacro,
             pIcon    = partner.icon,
             pLuaId   = partner.luaId,
           }
@@ -377,9 +391,13 @@ local function readShipLog(ship, startTime, endTime)
     end
   end
 
-  -- The engine returns entries newest-first in places; the pairing pass and the
-  -- profit graph both assume ascending time.
+  -- The engine returns entries newest-first in places; pairing and the graph both
+  -- assume ascending time.
   table.sort(ship.tx, function(a, b) return a.t < b.t end)
+  -- The previous stop of the whole log, not of a filtered view: the route flown.
+  for i = 2, #ship.tx do
+    ship.tx[i].prevSecMacro = ship.tx[i - 1].pSecMacro
+  end
   traceLog("readShipLog: %s kept %d trade entries.", ship.fullName, #ship.tx)
 end
 
@@ -392,10 +410,8 @@ local function buildShip(luaId)
   return {
     luaId       = luaId,
     id64        = id64,
-    -- Identity is the object. `key` is only its canonical string, for the places
-    -- a 64-bit id cannot go: table keys (LuaJIT hashes cdata by identity, not by
-    -- value), row data and dropdown ids. Both come off the same id64, so they
-    -- cannot disagree; the idcode is display text and nothing else.
+    -- For the places a 64-bit id cannot go: table keys (LuaJIT hashes cdata by
+    -- identity, not value), row data and dropdown ids.
     key         = tostring(id64),
     name        = name or "",
     fullName    = fullName,
@@ -412,11 +428,8 @@ local function buildShip(luaId)
   }
 end
 
--- A ship worth listing, by vanilla's own test (menu_map.lua:7547 isObjectValid):
--- drones and other units, deployables (laser towers, satellites, mines, resource
--- probes), wrecks and limpet-attached hulls are all "ship" class and none of them
--- is a ship the player trades with. The class test comes first so the component
--- lookup is only paid for on actual ships.
+-- Vanilla's isObjectValid test: drones, deployables, wrecks and limpets are all
+-- "ship" class. The class test comes first to save the component lookup.
 local function isListableShip(luaId)
   if not IsComponentClass(luaId, "ship") or IsComponentClass(luaId, "spacesuit") then
     return false
@@ -439,10 +452,10 @@ function sta.scan()
   sta.skippedShips = 0
   sta.scanTime = now
   sta.sectorOwner = {} -- sectors change hands; only cache within a scan
+  sta.sectorMacro = {} -- a macro never changes, but the ids keying it go stale
 
-  -- Every listable ship is kept, traded or not; the "with transactions" filter is
-  -- what decides which of them a view shows, and the parent-station options are
-  -- derived from that same set (sta.stationOptions).
+  -- Every listable ship is kept, traded or not; the withTransactions filter is
+  -- what narrows the views, and the station options derive from the same set.
   local tradingShips, shipsWithStation = 0, 0
   local objects = GetContainedObjectsByOwner("player")
   for _, luaId in ipairs(objects) do
@@ -462,12 +475,25 @@ function sta.scan()
   sta.scanned = true
   debugLog("scan: %d ship(s), %d trading, %d trade entries, %d under a station.",
     #sta.ships, tradingShips, sta.totalEntries, shipsWithStation)
+
+  -- sta_graph installs its jump pass here; it requires this module, not the other way.
+  if sta.afterScan ~= nil then
+    sta.afterScan()
+  end
 end
 
+-- Scans when there is no snapshot or it aged past the configured interval. True
+-- when one ran: anything the caller keyed on the previous snapshot is stale.
 function sta.ensureScanned()
-  if not sta.scanned then
-    sta.scan()
+  if sta.scanned then
+    local minutes = tonumber(sta.getConfig().rescanIntervalMinutes)
+        or config.rescanIntervalMinutes
+    if C.GetCurrentGameTime() - sta.scanTime < minutes * 60 then
+      return false
+    end
   end
+  sta.scan()
+  return true
 end
 
 -- *** filtering ***
@@ -475,8 +501,6 @@ end
 function sta.defaultFilter()
   local cfg = sta.getConfig()
   return {
-    -- The scan keeps every ship; this is what narrows the views to the ones that
-    -- have something in the trade log, which is what the analysis is about.
     withTransactions = true,
     parentStation  = "any",   -- "any" | "none" | <station id as a string>
     shipClass      = "all",   -- "all" | ship_xl | ship_l | ship_m | ship_s
@@ -485,10 +509,8 @@ function sta.defaultFilter()
   }
 end
 
--- Parent-station options for the current filter: the stations of exactly the ships
--- the views are showing, so an option can never come up empty and no station is
--- hidden because its miners never trade. Memoised on the one filter field it
--- depends on, since the dropdown is rebuilt with every frame.
+-- The stations of exactly the ships the views show, so an option is never empty.
+-- Memoised on the one filter field it depends on: the dropdown rebuilds per frame.
 function sta.stationOptions(filter)
   local key = tostring(filter.withTransactions) .. "|" .. tostring(sta.scanTime)
   if sta.stationOptionsKey ~= key then
@@ -508,8 +530,7 @@ function sta.stationOptions(filter)
   return sta.stationOptionsCache
 end
 
--- True when the station is still on offer under the current filter - a parent
--- station picked with every ship listed need not survive narrowing to traders.
+-- A station picked with every ship listed need not survive narrowing to traders.
 function sta.stationOffered(filter, key)
   if key == "any" or key == "none" then
     return true
@@ -547,8 +568,7 @@ function sta.txMatches(tx, filter)
   return true
 end
 
--- Ships passing the filter, each with the profit/turnover/count of only the
--- transactions that also pass it. Sorted by "name" or "profit".
+-- Ships passing the filter, totalled over only the transactions that pass it too.
 function sta.filteredShips(filter, sortBy)
   local result = {}
   for _, ship in ipairs(sta.ships) do
@@ -561,8 +581,7 @@ function sta.filteredShips(filter, sortBy)
           count = count + 1
         end
       end
-      -- With the transaction filter off a ship earns its row by existing, not by
-      -- having anything to show; the ranked views still take only what has rows.
+      -- With the filter off a ship earns its row by existing, not by having trades.
       if count > 0 or not filter.withTransactions then
         result[#result + 1] = {
           ship = ship, profit = profit, turnover = turnover, count = count,
@@ -596,9 +615,8 @@ end
 
 -- *** aggregates for the ranked views ***
 
--- Profit per (ship, ware) pair, as { key, name, total, parts = { {name, value} } }
--- rows ready for a stacked bar. groupBy "ship" puts ships on the axis and wares
--- in the segments; "ware" transposes it.
+-- Profit per (ship, ware) pair as stacked-bar rows: { key, name, total, parts }.
+-- groupBy "ship" puts ships on the axis and wares in the segments, "ware" transposes.
 function sta.rankedBreakdown(filter, groupBy, reverse)
   local groups = {}
   local order = {}
@@ -655,8 +673,7 @@ function sta.rankedBreakdown(filter, groupBy, reverse)
   return order
 end
 
--- Cargo load distribution: one entry per ship with its average and best load
--- percentage across the filtered transactions.
+-- One entry per ship with its average and best load across the filtered transactions.
 function sta.cargoLoad(filter, reverse)
   local rows = {}
   for _, ship in ipairs(sta.ships) do
@@ -698,9 +715,8 @@ end
 
 -- *** init ***
 
--- Widest tradeable ware name, measured once at init: the Ware column has to fit
--- anything that can turn up in a log, not just what this save has traded so far.
--- Borrowed declarations again - GetNumWares/GetWares come from vanilla's menus.
+-- Widest tradeable ware name: the Ware column has to fit anything that can turn up
+-- in a log, not just what this save traded. "" leaves the column variable.
 local function findWidestWareName()
   local widest, widestWidth = "", 0
   local ok = pcall(function()
@@ -727,11 +743,11 @@ end
 function sta.init()
   sta.playerId = ConvertStringTo64Bit(tostring(C.GetPlayerID()))
   sta.onDebugLevelChanged()
+  -- Runs on every game load, and a snapshot belongs to the game it was taken in.
+  sta.scanned = false
 
-  -- Everything this module reads is declared by vanilla rather than here, so a
-  -- renamed struct or entry point in a future patch has to fail loudly once at
-  -- load instead of on every scan. Indexing ffi.C with an undeclared symbol
-  -- raises rather than returning nil, hence the pcall around both checks.
+  -- Indexing ffi.C with an undeclared symbol raises rather than returning nil, so
+  -- the borrowed names are proven here once instead of on every scan.
   sta.available = pcall(function()
     ffi.typeof("TransactionLogEntry")
     ffi.typeof("StorageInfo")

@@ -40,6 +40,7 @@
             <t id="131">Verkauft</t>
             <t id="132">Gewinn</t>
             <t id="133">Dauer</t>
+            <t id="134">Sprünge</t>
 
             <!-- menu -->
             <t id="1000">Schiffs-Handelsanalyse</t>
@@ -75,6 +76,7 @@
             <t id="1033">Mit Transaktionen</t>
 
             <!-- Options page -->
+            <t id="90101">Aktualisierungsintervall der Daten</t>
             <t id="90102">Interne Handelsgeschäfte standardmäßig einbeziehen</t>
 
             <!-- Section: Debug (90900) -->

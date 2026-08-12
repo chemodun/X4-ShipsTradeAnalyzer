@@ -40,6 +40,7 @@
             <t id="131">Sprzedano</t>
             <t id="132">Zysk</t>
             <t id="133">Czas trwania</t>
+            <t id="134">Skoki</t>
 
             <!-- menu -->
             <t id="1000">Analizator handlu statków</t>
@@ -75,6 +76,7 @@
             <t id="1033">Z transakcjami</t>
 
             <!-- Options page -->
+            <t id="90101">Interwał odświeżania danych</t>
             <t id="90102">Domyślnie uwzględniaj wymiany wewnętrzne</t>
 
             <!-- Section: Debug (90900) -->

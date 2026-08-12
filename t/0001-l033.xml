@@ -40,6 +40,7 @@
             <t id="131">Vendu</t>
             <t id="132">Bénéfice</t>
             <t id="133">Durée</t>
+            <t id="134">Sauts</t>
 
             <!-- menu -->
             <t id="1000">Analyseur de commerce des vaisseaux</t>
@@ -75,6 +76,7 @@
             <t id="1033">Avec transactions</t>
 
             <!-- Options page -->
+            <t id="90101">Intervalle d'actualisation des données</t>
             <t id="90102">Inclure les échanges internes par défaut</t>
 
             <!-- Section: Debug (90900) -->

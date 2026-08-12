@@ -40,6 +40,7 @@
             <t id="131">Prodáno</t>
             <t id="132">Zisk</t>
             <t id="133">Trvání</t>
+            <t id="134">Skoky</t>
 
             <!-- menu -->
             <t id="1000">Analyzátor obchodu lodí</t>
@@ -75,6 +76,7 @@
             <t id="1033">S transakcemi</t>
 
             <!-- Options page -->
+            <t id="90101">Interval obnovení dat</t>
             <t id="90102">Ve výchozím stavu zahrnout interní obchody</t>
 
             <!-- Section: Debug (90900) -->

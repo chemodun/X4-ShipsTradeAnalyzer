@@ -1,30 +1,23 @@
 -- Ships Trade Analyzer - menu.
 --
--- Standalone top-level menu registered the way vanilla registers
--- TransactionLogMenu. Left panel: view, analysis mode, filters and the ship
--- list. Right panel: whichever view is selected.
+-- Standalone top-level menu, registered the way vanilla registers TransactionLogMenu
+-- and opened from the interaction menu of a player ship or station. Left panel:
+-- view, mode, filters and the ship list. Right panel: the selected view.
 --
--- Opened from the right-click interaction menu of any player-owned ship or
--- station (raise_lua_event 'ShipsTradeAnalyzer.OpenMenu' param=<component>).
+-- A ship is picked the way the map's object list picks one - the current row is the
+-- selection - and only the graph, which draws several at once, is multiselect.
 --
--- A ship is picked the way the map's object list picks one: the list's current
--- row is the selection, and only the graph view - which draws several ships at
--- once - makes the list multiselect.
---
--- The X4 graph widget only draws lines (graphtype is "line" and nothing else
--- is accepted), so the ware and load breakdowns are horizontal bars built from
--- background-coloured table cells rather than real column charts.
---
--- Those bar views are not meant to scroll - the tables cannot be kept in sync -
--- so the number of rows that fit is derived from the panel height and the rest is
--- reached page by page. Only title rows are fixed anywhere: a fixed row cannot be
--- scrolled away, so a table made entirely of them demands its full height and the
--- engine drops it rather than scrolling it.
+-- The X4 graph widget draws lines and nothing else, so the breakdowns are horizontal
+-- bars built from background-coloured table cells. Those cannot be kept in sync
+-- across tables, so they are paged to fit rather than scrolled.
 
+---@diagnostic disable-next-line: unresolved-require
 local ffi       = require("ffi")
 local C         = ffi.C
 
+---@diagnostic disable-next-line: unresolved-require
 local sta       = require("extensions.ships_trade_analyzer.ui.sta_data")
+---@diagnostic disable-next-line: unresolved-require
 local staTrades = require("extensions.ships_trade_analyzer.ui.sta_trades")
 
 local PAGE = 1972092439
@@ -37,49 +30,38 @@ local menu = {
 
 local config = {
   infoLayer        = 4,
-  -- Share of the map's own left info panel width (menu_map's infoTableWidth).
+  -- Share of the map's own left info panel width, and vanilla's floor for it.
   leftPanelShare   = 0.8,
-  -- Vanilla's floor for that width, applied there the same way.
   mapInfoMinWidth  = 400,
-  -- A table cannot have more than 13 columns, so the bar of the ranked views is
-  -- spread over several tables side by side: barTables * 13 segments. Every table
-  -- spends a row of the frame's pool per item, so the Bar Detail slider trades
-  -- segments against rows per page.
+  -- A table caps at 13 columns, so a bar spans barTables of them side by side.
+  -- Each one costs a row of the frame's pool per item: the Bar Detail trade.
   maxTableCols     = 13,
   barTables        = 2,
   barTablesMax     = 6,
-  -- Name column of the bar views and of Cargo Load: a share of the left panel,
-  -- not of the panel it sits in, so both read the same way whatever is next to it.
+  -- Name column of the bar views and Cargo Load: a share of the left panel, not of
+  -- the panel it sits in, so both read the same whatever is next to them.
   nameColShare     = 0.8,
-  -- Any sum column on a right panel table: as a share of a left panel width
   sumColShare      = 0.3,
-  -- Cargo Load's Average and Best: a fixed width the value is known to fit, not a
-  -- share of a panel that could shrink under it. Unscaled px, run through
-  -- Helper.scaleX at use, so the cell takes scaling = false.
+  -- Fixed width a value is known to fit, not a share of a panel that could shrink.
+  -- Unscaled px, run through Helper.scaleX at use, so the cell takes scaling = false.
   loadValueWidth   = 60,
-  -- Upper bound of each fixed-width column, as the value it is formatted from;
-  -- the width is measured off the formatted string, which is translated.
+  -- Upper bound of each fixed-width column, measured off the formatted string.
   widthSample = {
     price = 9999999, quantity = 999999, total = 999999999, load = 100,
     duration = 99 * 86400 + 23 * 3600 + 59 * 60,
+    jumps = 99,
   },
-  -- The widget system hands out table rows from a shared pool - its own
-  -- config.tableRows.maxRows in widget_fullscreen.lua - and only the rows it
-  -- actually draws are taken from it. Past the pool rows are skipped ("No more
+  -- Table rows come from a shared engine pool. Past it rows are skipped ("No more
   -- table rows available") and the tables allocated last are dropped whole.
-  enginePoolRows   = 170 - 5, -- 5 some other windows use, so the engine's pool is 165 for us
-  -- Two columns per pair, and a table is capped at maxTableCols.
-  legendPairs      = 6,
-  -- Rows reserved for the legend at the bottom of the panel, whatever it holds.
-  legendRows       = 5,
-  -- Shared across every plotted line, not per line: what the graph widget can
-  -- still usefully draw at once (station_ware_history settled on the same 200).
+  enginePoolRows   = 170 - 5, -- 5 left to other windows
+  legendPairs      = 6, -- two columns each, against the maxTableCols cap
+  legendRows       = 5, -- reserved at the panel bottom whatever the legend holds
+  -- Shared across every plotted line, not per line.
   maxTotalPoints   = 200,
   maxYRoundTo      = 1000,
   point = { type = "square", size = 5 },
   line  = { type = "normal", size = 2 },
-  -- Also the cap on plotted ships: the graph holds exactly as many lines as
-  -- there are distinct colours for them.
+  -- Also the cap on plotted ships: one line per distinct colour.
   seriesColors = {
     Color["graph_data_1"], Color["graph_data_2"], Color["graph_data_3"], Color["graph_data_4"],
     Color["graph_data_5"], Color["graph_data_6"], Color["graph_data_7"], Color["graph_data_8"],
@@ -108,13 +90,12 @@ local cargoTypes = {
   { id = "gas",       text = 1023 },
 }
 
--- The stacked-bar views: paged, and the only ones the bar tables belong to.
 local function isBarView(view)
   return view == "shipsbywares" or view == "waresbyships"
 end
 
--- Laid out to fit rather than scrolled, so the ship list is dropped for them:
--- every row it draws is one the panel on the right cannot have.
+-- Paged rather than scrolled, and the ship list gives way to them: every row it
+-- draws is one the right panel cannot have.
 local function isRanked(view)
   return isBarView(view) or view == "cargoload"
 end
@@ -126,8 +107,6 @@ end
 -- *** registration ***
 
 local function init()
-  Menus = Menus or {}
-  table.insert(Menus, menu)
   if Helper then
     Helper.registerMenu(menu)
   end
@@ -136,11 +115,11 @@ end
 function menu.cleanup()
   menu.infoFrame = nil
   menu.graph = nil
+  menu.refreshQueued = nil
 end
 
--- Opened from the map's interaction menu, so "back" is pointed at the map
--- explicitly; without a back-target Helper.closeMenu falls through to the
--- engine's generic top-level fallback instead.
+-- "back" points at the map explicitly; without a back-target Helper.closeMenu
+-- falls through to the engine's generic top-level fallback.
 local function onOpenMenuEvent(_, componentLuaId)
   local id64 = ConvertIDTo64Bit(componentLuaId)
   OpenMenu("ShipsTradeAnalyzerMenu", { 0, 0, id64 }, { "MapMenu", { 0, 0 }, nil })
@@ -177,8 +156,7 @@ local function shipByKey(key)
   return nil
 end
 
--- Stable per-key colour: assigned on first sight and kept for the session, so a
--- ware keeps its colour when the ranking reshuffles under a filter change.
+-- Kept for the session, so a ware holds its colour when the ranking reshuffles.
 local function colorFor(key)
   local c = menu.partColors[key]
   if c == nil then
@@ -189,9 +167,8 @@ local function colorFor(key)
   return c
 end
 
--- Graph colours are a pool, not a sequence: a plotted ship holds its slot until
--- it leaves the graph, and the next pick takes the lowest slot free, so two
--- lines can never end up the same colour. Slots come back in plottedShips.
+-- A pool, not a sequence: a plotted ship holds its slot and the next pick takes the
+-- lowest free one, so two lines cannot share a colour. Slots come back in plottedShips.
 local function shipColor(key)
   local slot = menu.shipColors[key]
   if slot == nil then
@@ -212,10 +189,8 @@ end
 
 -- *** mode-agnostic data access ***
 
--- filteredShips walks every kept transaction of every ship, and the frame asks for
--- it again on every rebuild - once per row the player moves through the list. The
--- result depends on nothing but the scan, the mode, the filter and the sort, so it
--- is cached on exactly those; sta.scanTime in the key retires it on a rescan.
+-- filteredShips walks every transaction of every ship and the frame asks for it on
+-- every rebuild, so it is memoised on everything it depends on.
 local function shipRows()
   local f = menu.filter
   local key = table.concat({ menu.mode, menu.sortBy, f.parentStation, f.shipClass,
@@ -230,6 +205,18 @@ local function shipRows()
     menu.shipRowsKey = key
   end
   return menu.shipRowsCache
+end
+
+-- The asked-for ship while the list holds it, else the list's first entry: a ship
+-- the filter hides cannot be made the current row, and shipByKey searches wider.
+local function listedShipOrFirst(key)
+  local rows = shipRows()
+  for _, entry in ipairs(rows) do
+    if entry.ship.key == key then
+      return key
+    end
+  end
+  return rows[1] and rows[1].ship.key or nil
 end
 
 local function rankedRows(groupBy)
@@ -277,9 +264,8 @@ local function fairShareCaps(entries, budget)
   return caps
 end
 
--- Min/max-per-bucket decimation: keeps the extreme of every bucket, so a spike
--- is never smoothed away the way fixed-interval resampling would smooth it.
--- First and last points are always kept verbatim.
+-- Keeps both extremes of every bucket, so a spike survives where fixed-interval
+-- resampling would smooth it away. First and last points are kept verbatim.
 local function decimatePoints(points, cap)
   if #points <= cap then
     return points
@@ -328,10 +314,8 @@ local function decimatePoints(points, cap)
   return result
 end
 
--- The ships the graph draws: the list's multiselection, falling back to the current
--- row while nothing is multiselected, so the graph is never blank. The ship list
--- marks the same set, so the rows always say what the graph shows. It is also the
--- one place that knows the whole drawn set, so colour slots are freed here.
+-- The multiselection, falling back to the current row so the graph is never blank.
+-- The only place that knows the whole drawn set, so colour slots are freed here.
 local function plottedShips()
   local plotted = menu.graphShips
   if next(plotted) == nil then
@@ -356,8 +340,7 @@ local function graphShipList()
   return list
 end
 
--- Timestamped events feeding the profit graph, per analysis mode: a completed
--- trade books its whole profit at the moment it closed.
+-- Events feeding the profit graph: a completed trade books its profit when it closed.
 local function profitEvents(ship)
   local events = {}
   if menu.mode == "trades" then
@@ -399,8 +382,7 @@ local function buildCumulativePoints(ship, ctx)
   if #events == 0 then
     return points
   end
-  -- Anchor at zero just before the first event so a line always starts on the
-  -- baseline instead of jumping in mid-air.
+  -- Anchor at zero before the first event, or the line starts in mid-air.
   points[1] = { x = (events[1].t - ctx.now) / ctx.scale, y = 0 }
   for _, e in ipairs(events) do
     total = total + e.value
@@ -417,30 +399,32 @@ function menu.onShowMenu()
     resetState()
   end
 
-  sta.ensureScanned()
+  -- A rescan renumbers the trades the expand keys index into.
+  if sta.ensureScanned() then
+    menu.expanded = {}
+    menu.page = 1
+  end
 
-  -- Opened on a specific object: a ship preselects itself, a station preselects
-  -- itself as the parent-station filter.
+  -- Opened on an object: a ship preselects itself, a station its filter entry.
   local id64 = menu.param[3]
   if id64 ~= nil and id64 ~= 0 then
     local luaId = ConvertStringToLuaID(tostring(id64))
-    -- Rebuilt through ConvertIDTo64Bit rather than from the event's own
-    -- parameter, which need not stringify the way a stored key does.
+    -- Rebuilt through ConvertIDTo64Bit: the event's own parameter need not
+    -- stringify the way a stored key does.
     local key = tostring(ConvertIDTo64Bit(luaId))
     sta.traceLog("onShowMenu: opened on %s, key %s, station %s, known ship %s.",
       GetComponentData(luaId, "idcode") or "?", key,
       tostring(IsComponentClass(luaId, "station")), tostring(shipByKey(key) ~= nil))
     if IsComponentClass(luaId, "station") then
       menu.filter.parentStation = key
-      -- Opened on a station whose ships never traded: show them rather than an
-      -- empty list under a filter value the dropdown does not even offer.
+      -- A station whose ships never traded: show them rather than an empty list
+      -- under a filter value the dropdown does not even offer.
       if not sta.stationOffered(menu.filter, key) then
         menu.filter.withTransactions = false
       end
     elseif shipByKey(key) ~= nil then
-      menu.selectedShip = key
-      -- Reopened on another ship: the list starts on it rather than on
-      -- whatever the previous visit left selected and scrolled to.
+      menu.selectedShip = listedShipOrFirst(key)
+      -- Reopened on another ship, so the previous visit's scroll and picks go.
       menu.graphShips = {}
       menu.shipTopRow = nil
       menu.shipShift  = nil
@@ -450,9 +434,8 @@ function menu.onShowMenu()
   menu.createFrame()
 end
 
+-- Called on every display(), but the tables are rebuilt from scratch each refresh.
 function menu.viewCreated(_layer, ...)
-  -- Called unconditionally by the engine on every display(); the tables are
-  -- rebuilt from scratch each refresh, so nothing needs keeping.
 end
 
 function menu.refreshInfoFrame()
@@ -512,8 +495,8 @@ function menu.toggleInternal(checked)
   refreshFromFirstPage()
 end
 
--- Narrowing to ships that traded also narrows the parent-station options, so a
--- station picked while every ship was listed can stop being on offer.
+-- Narrowing to traders narrows the station options too, so the picked one can
+-- stop being on offer.
 function menu.toggleWithTransactions(checked)
   menu.filter.withTransactions = checked
   if not sta.stationOffered(menu.filter, menu.filter.parentStation) then
@@ -542,8 +525,7 @@ function menu.setPage(page)
   menu.refreshInfoFrame()
 end
 
--- Anything that is not a page number just rebuilds the frame, which puts the
--- box back to "current / total" without needing SetEditBoxText.
+-- A rebuild puts the box back to "current / total" without needing SetEditBoxText.
 function menu.editPage(text)
   local page = tonumber(text)
   if page ~= nil then
@@ -552,10 +534,9 @@ function menu.editPage(text)
   menu.refreshInfoFrame()
 end
 
--- The graph view plots what the ship list has multiselected, capped at the colour
--- pool: a ship already plotted keeps its colour, and a fresh pick with none left
--- for it is taken straight back off the widget. Returns whether the set changed.
-local function updateGraphShips(uitable, currentRow)
+-- The multiselection capped at the colour pool. Returns whether the plotted set
+-- changed, and whether a pick was refused without being pushed back.
+local function updateGraphShips(uitable, currentRow, pushBack)
   local rows = GetSelectedRows(uitable) or {}
   local map  = (menu.rowDataMap and menu.rowDataMap[uitable]) or {}
 
@@ -567,8 +548,7 @@ local function updateGraphShips(uitable, currentRow)
     end
   end
 
-  -- Two passes over the same picks: the ships already plotted claim their slots
-  -- first, then the new ones take whatever the pool has left, in list order.
+  -- Plotted ships claim their slots first, then new picks take what is left.
   local plotted, free = {}, #config.seriesColors
   for _, p in ipairs(picks) do
     if menu.graphShips[p.key] then
@@ -583,10 +563,8 @@ local function updateGraphShips(uitable, currentRow)
     end
   end
 
-  -- A refused pick by definition leaves the plotted set alone, so the frame is
-  -- not rebuilt and the row would keep the widget's own highlight. Push the
-  -- selection back instead: `SetSelectedRows` with the unchanged current row
-  -- raises no event of its own, so the highlight is gone before the next draw.
+  -- A refusal changes nothing, so no rebuild clears the widget's own highlight.
+  -- SetSelectedRows with an unchanged current row raises no event of its own.
   local keptRows, refused = {}, false
   for _, p in ipairs(picks) do
     if plotted[p.key] then
@@ -595,7 +573,7 @@ local function updateGraphShips(uitable, currentRow)
       refused = true
     end
   end
-  if refused then
+  if refused and pushBack then
     SetSelectedRows(uitable, keptRows, currentRow)
     sta.traceLog("updateGraphShips: %d colour(s) all taken, pick on row %s refused.",
       #keptRows, tostring(currentRow))
@@ -609,13 +587,12 @@ local function updateGraphShips(uitable, currentRow)
     changed = changed or (plotted[key] == nil)
   end
   menu.graphShips = plotted
-  return changed
+  return changed, (refused and not pushBack)
 end
 
--- The ship list drives the right panel through the table's own current row, the
--- way the map's object list does. Only a real change rebuilds the frame: a
--- multiselect table reports its current row again on every redraw of its own.
-function menu.onRowChanged(row, rowdata, uitable, _modified, _input, _source)
+-- Only a real change queues a rebuild: a multiselect table reports its current row
+-- again on every redraw of its own.
+function menu.onRowChanged(row, rowdata, uitable, _modified, _input, source)
   if (type(rowdata) ~= "table") or (rowdata[1] ~= "ship") then
     return
   end
@@ -627,23 +604,26 @@ function menu.onRowChanged(row, rowdata, uitable, _modified, _input, _source)
   local changed = (key ~= menu.selectedShip)
   menu.selectedShip = key
   if changed then
-    -- Another ship's history starts at its own first page.
     menu.page = 1
   end
 
   if menu.view == "graph" then
-    changed = updateGraphShips(uitable, row) or changed
-    -- Read back after the pick is settled: refusing one moves the widget's own
-    -- shift anchors, and the stale pair would be restored over them.
+    -- "auto" is the engine picking a row while it still builds the table; writing
+    -- back into it there is what the queued rebuild avoids.
+    local picked, refused = updateGraphShips(uitable, row, source ~= "auto")
+    changed = picked or refused or changed
+    -- After the pick: refusing one moves the widget's own shift anchors.
     menu.shipShift = GetShiftStartEndRow(uitable)
   end
 
   if changed then
     local plotted = 0
     for _ in pairs(menu.graphShips) do plotted = plotted + 1 end
-    sta.traceLog("selection: current %s, %d plotted, top row %s.",
-      key, plotted, tostring(menu.shipTopRow))
-    menu.refreshInfoFrame()
+    sta.traceLog("selection: current %s, %d plotted, top row %s, source %s.",
+      key, plotted, tostring(menu.shipTopRow), tostring(source))
+    -- Never rebuilt here: the engine raises this from inside its own frame setup,
+    -- and clearDataForRefresh would destroy the frame being built.
+    menu.refreshQueued = true
   end
 end
 
@@ -654,8 +634,7 @@ end
 
 -- *** frame ***
 
--- The map's left info panel width. Its own menu.infoTableWidth is not reachable
--- from here, so it is recomputed exactly as menu_map does it.
+-- menu_map's own infoTableWidth is not reachable from here, so it is recomputed.
 local function mapInfoTableWidth()
   local playerInfo = Helper.playerInfoConfig
   return math.max(playerInfo.width - Helper.scaleX(Helper.sidebarWidth) - (config.isV9 and Helper.minorPanelSpacing or 2 * Helper.borderSize),
@@ -680,8 +659,7 @@ function menu.createFrame()
   local rightX      = Helper.frameBorder + leftWidth + Helper.borderSize
   local rightWidth  = usableWidth - leftWidth - Helper.borderSize
 
-  -- The bar views and Cargo Load size their name column off this, not off their
-  -- own panel.
+  -- The bar views and Cargo Load size their name column off this, not their own panel.
   menu.leftPanelWidth = leftWidth
 
   menu.createLeftPanel(Helper.frameBorder, leftWidth)
@@ -702,15 +680,10 @@ local function dropdownOptions(entries, currentId)
 end
 
 -- *** paged layout ***
---
--- The bar views are laid out to fit rather than scrolled, so the panel is measured
--- up front: one standard text row plus the border below it is the pitch.
--- Computed the way helper.lua computes a text cell height - the text height of
--- the standard font, floored at the text widget's minRowHeight - so it follows
--- the UI scale instead of assuming a size.
+
+-- One text row plus its border. The left panel measures the real pitch off its own
+-- rows; this is the fallback, computed the way helper.lua computes a cell height.
 local function rowPitch()
-  -- The left panel is built first and its ship rows are ordinary text rows, so
-  -- the engine's own arithmetic over them beats any estimate made here.
   if menu.measuredPitch ~= nil then
     return menu.measuredPitch
   end
@@ -728,8 +701,8 @@ local function rowPitch()
   return height + Helper.borderSize
 end
 
--- Fixes a column to the widest of the given strings. The padding is the text
--- cell's own offset on either side; setColWidth only bites before the first row.
+-- Padding is the text cell's own offset on either side. setColWidth only takes
+-- effect before the first addRow.
 local function setTextColWidth(t, col, ...)
   local fontsize = Helper.scaleFont(Helper.standardFont, Helper.standardFontSize)
   local widest   = 0.0
@@ -754,8 +727,8 @@ local function agoSample()
   return sta.formatAgo(0, config.widthSample.duration)
 end
 
--- Station name and its sector in one cell: only the icon widget takes a second
--- text. Station and sector are coloured by their own owners, which differ.
+-- Name and sector in one cell: only the icon widget takes a second text. Each is
+-- coloured by its own owner, which a station and its sector need not share.
 local function createStationCell(cell, info)
   local iconSize   = Helper.standardTextHeight
   local ownerColor = sta.factionColor(info.owner)
@@ -783,9 +756,8 @@ local function pagerHeight()
   return Helper.scaleY(Helper.standardButtonHeight) + Helper.borderSize
 end
 
--- config.legendRows rows are reserved for the legend whatever it holds, so the
--- number of bar rows above it does not change from page to page. The legend
--- itself is only as tall as it needs to be, pinned to the bottom of the panel.
+-- legendRows are reserved whatever the legend holds, so the rows above it do not
+-- change from page to page. The legend itself is only as tall as it needs to be.
 local function legendHeights(entryCount)
   if not menu.showLegend then
     return 0, 0
@@ -796,8 +768,8 @@ local function legendHeights(entryCount)
   return reserved, math.min(rows, config.legendRows) * pitch - Helper.borderSize
 end
 
--- What the legend costs the frame's row pool: the rows it can show, not the rows
--- it holds - the ones scrolled out of its box are never drawn and cost nothing.
+-- What it costs the row pool: the rows it shows, not the rows it holds - the ones
+-- scrolled out of its box are never drawn.
 local function legendRowCount(entryCount)
   if not menu.showLegend then
     return 0
@@ -805,16 +777,13 @@ local function legendRowCount(entryCount)
   return math.min(math.ceil(entryCount / config.legendPairs), config.legendRows)
 end
 
--- Bottom edge of the panel area: the frame fills the view, so its own border is
--- the only thing below the tables.
 local function panelBottom()
   return Helper.viewHeight - Helper.frameBorder
 end
 
--- A table scrolls only once it is told how tall it may grow. Left at the default
--- 0, getMaxVisibleHeight falls back to the frame height less the table's y, which
--- is more than the frame actually leaves free - the engine then rejects the whole
--- table ("Vertical space left doesn't suffice") instead of scrolling it.
+-- A table scrolls only once told how tall it may grow. Left at the default 0,
+-- getMaxVisibleHeight asks for more than the frame leaves free and the engine
+-- rejects the table outright ("Vertical space left doesn't suffice").
 local function scrollHeight(y, bottom)
   return (bottom or panelBottom()) - y
 end
@@ -828,22 +797,18 @@ local function contentBottom(legendEntryCount)
   return panelBottom() - reserved - Helper.borderSize
 end
 
--- Rows a frame may actually claim: on a first draw the engine refuses to hand out
--- its last element, keeping it for the mouse-over limbo row.
+-- On a first draw the engine keeps its last row back for the mouse-over limbo row.
 local function poolBudget()
   return config.enginePoolRows - 1
 end
 
--- Bottom edge of a per-ship table: the pager sits below it, always.
+-- The pager always sits below a per-ship table.
 local function detailBottom()
   return panelBottom() - pagerHeight() - Helper.borderSize
 end
 
--- A ship's history is unbounded and every row of it costs engine calls whether it
--- is drawn or not, so the per-ship tables are paged as well - to exactly the rows
--- that fit, so a page never has to be scrolled. The pager is always drawn, as in
--- the ranked views, or the row count would depend on the page.
--- Returns the slice of the current page, counted from the newest item.
+-- The slice of the current page. A row costs engine calls whether it is drawn or
+-- not, so a page holds exactly what fits and never scrolls.
 local function detailPage(itemCount, headerHeight)
   local pitch   = rowPitch()
   -- getFullHeight puts no border below its last row, so the header owes one.
@@ -857,20 +822,15 @@ local function detailPage(itemCount, headerHeight)
   return (menu.page - 1) * perPage + 1, math.min(itemCount, menu.page * perPage)
 end
 
--- Rows that fit below the header, and the slice of items the current page shows.
--- The pager is always drawn - it only greys out on a single page - so its height
--- comes off the budget unconditionally and the row count stays page-independent.
---
--- Two budgets have to hold: the vertical space, and the frame's row pool, which
--- the left panel, the title table, the pager and the legend draw on first, and
--- which every side-by-side table then spends a row of per item. A long ship list
--- therefore shortens the page instead of silently costing the last table its rows.
+-- The slice of the current page, against the vertical space and the frame's row
+-- pool: every side-by-side table spends a row of it per item. The pager is always
+-- drawn, or the row count would depend on the page.
 local function pageLayout(itemCount, top, bottom, headerHeight, numTables, legendRows)
   local pitch   = rowPitch()
   local budget  = bottom - top - headerHeight - pagerHeight() - Helper.borderSize
   local perPage = math.max(1, math.floor(budget / pitch))
 
-  -- Off the top: the panel title's own table and the pager, one row each.
+  -- Off the top: the panel title's table and the pager, one row each.
   local free   = poolBudget() - (menu.leftRowCount or 0) - 2 - legendRows
   local rowCap = math.max(1, math.floor(free / numTables))
   if rowCap < perPage then
@@ -888,7 +848,7 @@ local function pageLayout(itemCount, top, bottom, headerHeight, numTables, legen
 end
 
 -- Vanilla's transaction-log navigator: first / previous / editable "page / total"
--- / next / last. Sized to its content and centred over the panel.
+-- / next / last.
 local function createPager(x, width, bottom, tabOrder)
   local buttonWidth = Helper.scaleY(Helper.standardButtonHeight)
   local pagesWidth  = Helper.scaleX(4 * Helper.standardTextHeight)
@@ -905,8 +865,7 @@ local function createPager(x, width, bottom, tabOrder)
     tabOrder = tabOrder, width = tableWidth,
     x = x + math.max(0, math.floor((width - tableWidth) / 2)),
     y = bottom - Helper.scaleY(Helper.standardButtonHeight),
-    -- Every column is explicit, so there is no variable column to take the
-    -- reserved scrollbar space and helper.lua would log an error over it.
+    -- No variable column left to take the reserved space, which helper.lua logs over.
     reserveScrollBar = false,
     backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
   })
@@ -935,9 +894,8 @@ local function createPager(x, width, bottom, tabOrder)
   row[5].handlers.onClick = function() return menu.setPage(menu.pageCount) end
 end
 
--- Legend for the colours a view assigns, listing every entry of the whole
--- ranking rather than the current page, so a ware keeps its place while paging.
--- Rows are selectable because a table only scrolls once it can take the focus.
+-- Lists the whole ranking, not the current page, so an entry keeps its place while
+-- paging. Rows are selectable, or the table cannot take focus and never scrolls.
 local function createLegend(x, width, entries, tabOrder, colorOf)
   local _, visible = legendHeights(#entries)
   if visible <= 0 then
@@ -965,8 +923,8 @@ local function createLegend(x, width, entries, tabOrder, colorOf)
   end
 end
 
--- A checkbox without an explicit width stretches over the whole cell, and cells
--- have no halign for non-text widgets, so the box is squared and centred by hand.
+-- A checkbox without an explicit width stretches over the cell, and there is no
+-- halign for non-text widgets, so it is squared and centred by hand.
 local function createCenteredCheckBox(cell, checked)
   local size = Helper.scaleX(Helper.standardTextHeight)
   cell:createCheckBox(checked, { width = size, height = size, scaling = false })
@@ -975,13 +933,11 @@ local function createCenteredCheckBox(cell, checked)
 end
 
 function menu.createLeftPanel(x, width)
-  -- The graph plots several ships at once and takes them from the list's
-  -- multiselection; every other view reads the current row alone.
+  -- Only the graph draws several ships, so only it needs the multiselection.
   local multi = (menu.view == "graph")
 
-  -- Four equal columns serve both halves of the panel: a control row is a label
-  -- in column 1 and the control spanning 2-4, a ship row is the name spanning
-  -- 1-3 and its profit in column 4.
+  -- Four columns for both halves: a control is a label in 1 and the widget over
+  -- 2-4, a ship row is the name over 1-3 and its profit in 4.
   local leftTable = menu.infoFrame:addTable(4, {
     tabOrder = 1, width = width, x = x, y = Helper.frameBorder, borderEnabled = true,
     maxVisibleHeight = scrollHeight(Helper.frameBorder), multiSelect = multi,
@@ -1071,8 +1027,8 @@ function menu.createLeftPanel(x, width)
     row[2].handlers.onClick = function(_, checked) return menu.toggleReverse(checked) end
   end
 
-  -- Both of these buy rows for the panel on the right: the legend by giving up its
-  -- reserved band, the slider by putting fewer tables side by side.
+  -- Both buy rows for the right panel: the legend gives up its reserved band, the
+  -- slider puts fewer tables side by side.
   if hasLegend(menu.view) then
     row = leftTable:addRow(true, { fixed = true })
     row[1]:createText(ReadText(PAGE, 1010), { halign = "left" })
@@ -1116,14 +1072,12 @@ function menu.createLeftPanel(x, width)
     return
   end
 
-  -- Height of the control block above the list, which is also what the ship rows
-  -- have to fit under. Measured over the control rows only - cheap - while the
-  -- pitch below comes off a single row, since getFullHeight prices every cell of
-  -- every row with a GetTextHeight call.
+  -- Height of the control block the ship rows have to fit under. Measured over the
+  -- control rows alone: getFullHeight prices every cell with a GetTextHeight call.
   local beforeShips = leftTable:getFullHeight()
 
-  -- The paged views need every row the pool can spare, so the list gives way to
-  -- its own count there - one plain text row, which is also the pitch probe.
+  -- The paged views need every row the pool can spare, so the list gives way to its
+  -- own count there - one plain text row, which is also the pitch probe.
   if isRanked(menu.view) then
     row = leftTable:addRow(false, {})
     row[1]:setColSpan(3):createText(ReadText(PAGE, 1032), { halign = "left" })
@@ -1135,8 +1089,8 @@ function menu.createLeftPanel(x, width)
     return
   end
 
-  -- A ship is picked by making its row current, not by clicking a cell, so the
-  -- rows carry their id as row data and nothing carries a click handler.
+  -- A ship is picked by making its row current, so the rows carry their id as row
+  -- data and no cell carries a click handler.
   local selectedRow
   local firstShipRow
   local plottedSet = multi and plottedShips() or {}
@@ -1148,8 +1102,7 @@ function menu.createLeftPanel(x, width)
     if key == menu.selectedShip then
       selectedRow = row.index
     end
-    -- Plotted rows take their line's colour, which is what ties a row to a line -
-    -- the inline icon takes the cell colour too, so it follows the line.
+    -- A plotted row takes its line's colour; the inline icon follows the cell.
     local icon = (entry.ship.icon ~= "") and ("\027[" .. entry.ship.icon .. "] ") or ""
     row[1]:setColSpan(3):createText(icon .. entry.ship.fullName,
       { halign = "left", color = plotted and shipColor(key) or nil })
@@ -1158,20 +1111,18 @@ function menu.createLeftPanel(x, width)
     })
   end
 
-  -- Every ship row is the same plain text, so one of them is the pitch: its own
-  -- height plus the border the table puts below it.
+  -- Every ship row is the same plain text, so one of them is the pitch.
   menu.measuredPitch = firstShipRow:getHeight() + Helper.borderSize
   -- What the right panel has left of the frame's row pool.
   menu.leftRowCount  = #leftTable.rows
   sta.traceLog("rowPitch: measured %d over %d ship row(s), %d left panel row(s).",
     menu.measuredPitch, #rows, menu.leftRowCount)
 
-  -- Put the list back where the player left it: the current row is the selection,
-  -- and the shift range keeps a running shift-select alive across the rebuild.
+  -- Put the list back where the player left it, shift range included.
   if selectedRow ~= nil then
     leftTable:setSelectedRow(selectedRow)
-    -- First build, opened on a ship far down the list: the engine never moves the
-    -- top row to the selection, so an unscrolled list would hide it.
+    -- The engine never moves the top row to the selection, so a first build opened
+    -- on a ship far down the list would hide it.
     if menu.shipTopRow == nil then
       local visible   = math.max(1, math.floor((scrollHeight(Helper.frameBorder) - beforeShips) / menu.measuredPitch))
       local firstShip = #leftTable.rows - #rows + 1
@@ -1226,7 +1177,7 @@ function menu.createTransactionsPanel(x, width)
   end
 
   -- Station and sector share one column, the way an expanded trade shows them.
-  local t = menu.infoFrame:addTable(9, {
+  local t = menu.infoFrame:addTable(10, {
     tabOrder = 2, width = width, x = x, y = Helper.frameBorder, borderEnabled = true,
     maxVisibleHeight = scrollHeight(Helper.frameBorder, detailBottom()),
     backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
@@ -1238,14 +1189,15 @@ function menu.createTransactionsPanel(x, width)
   if sta.widestWareName ~= "" then
     setTextColWidth(t, 3, ReadText(PAGE, 112), sta.widestWareName)
   end
-  setTextColWidth(t, 5, ReadText(PAGE, 113), sta.formatMoney(config.widthSample.price))
+  setTextColWidth(t, 5, ReadText(PAGE, 113), sta.formatPrice(config.widthSample.price))
   setTextColWidth(t, 6, ReadText(PAGE, 114), tostring(config.widthSample.quantity))
   setTextColWidth(t, 7, ReadText(PAGE, 115), sta.formatMoney(config.widthSample.total))
   setTextColWidth(t, 8, ReadText(PAGE, 116), sta.formatMoney(config.widthSample.total))
-  setTextColWidth(t, 9, ReadText(PAGE, 119), string.format("%.0f%%", config.widthSample.load))
+  setTextColWidth(t, 9, ReadText(PAGE, 134), tostring(config.widthSample.jumps))
+  setTextColWidth(t, 10, ReadText(PAGE, 119), string.format("%.0f%%", config.widthSample.load))
 
   local row = t:addRow(false, { fixed = true, bgColor = Color["row_title_background"] })
-  row[1]:setColSpan(9):createText(ship.fullName, Helper.titleTextProperties)
+  row[1]:setColSpan(10):createText(ship.fullName, Helper.titleTextProperties)
 
   row = t:addRow(false, { fixed = true, bgColor = Color["row_background_unselectable"] })
   row[1]:createText(ReadText(PAGE, 110), { halign = "right" })
@@ -1256,14 +1208,13 @@ function menu.createTransactionsPanel(x, width)
   row[6]:createText(ReadText(PAGE, 114), { halign = "right" })
   row[7]:createText(ReadText(PAGE, 115), { halign = "right" })
   row[8]:createText(ReadText(PAGE, 116), { halign = "right" })
-  row[9]:createText(ReadText(PAGE, 119), { halign = "right" })
+  row[9]:createText(ReadText(PAGE, 134), { halign = "right" })
+  row[10]:createText(ReadText(PAGE, 119), { halign = "right" })
 
-  -- Measured, not derived: the title row uses titleTextProperties and is taller
-  -- than the header row below it.
+  -- Measured, not derived: the title row is taller than the header below it.
   local first, last = detailPage(#transactions, t:getFullHeight())
 
-  -- Newest first: the recent tail is what anyone opening this actually wants, so
-  -- the first page is the newest slice.
+  -- Newest first, so the first page is the recent tail.
   for j = first, last do
     local tx = transactions[#transactions - j + 1]
     row = t:addRow(true, {})
@@ -1275,13 +1226,15 @@ function menu.createTransactionsPanel(x, width)
       name = tx.pName, sector = tx.pSector, owner = tx.pOwner,
       sectorOwner = tx.pSecOwner, icon = tx.pIcon,
     })
-    row[5]:createText(sta.formatMoney(tx.price), { halign = "right" })
+    row[5]:createText(sta.formatPrice(tx.price), { halign = "right" })
     row[6]:createText(tostring(tx.vol), { halign = "right" })
     row[7]:createText(sta.formatMoney(tx.sale and tx.sum or -tx.sum),
       { halign = "right", color = tx.sale and Color["text_positive"] or Color["text_negative"] })
     row[8]:createText(sta.formatMoney(tx.profit),
       { halign = "right", color = (tx.profit >= 0) and Color["text_positive"] or Color["text_negative"] })
-    row[9]:createText(string.format("%.0f%%", tx.load), { halign = "right" })
+    -- Filled by the scan; a dash when a sector is unknown, never a zero.
+    row[9]:createText(tx.jumps and tostring(tx.jumps) or "-", { halign = "right" })
+    row[10]:createText(string.format("%.0f%%", tx.load), { halign = "right" })
   end
 
   createPager(x, width, panelBottom(), 3)
@@ -1298,30 +1251,30 @@ function menu.createTradesPanel(x, width)
     return emptyPanel(x, width, 1016)
   end
 
-  local t = menu.infoFrame:addTable(8, {
+  local t = menu.infoFrame:addTable(9, {
     tabOrder = 2, width = width, x = x, y = Helper.frameBorder, borderEnabled = true,
     maxVisibleHeight = scrollHeight(Helper.frameBorder, detailBottom()),
     backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
   })
 
-  -- Expand column, vanilla's own (menu_map's info rows): a square button as tall
-  -- as a text row, so a trade row cannot outgrow the pitch the page is measured
-  -- against. Widths must precede the first addRow.
+  -- Expand column, vanilla's own: a button as tall as a text row, so a trade row
+  -- cannot outgrow the pitch the page is measured against.
   t:setColWidth(1, Helper.scaleY(Helper.standardTextHeight) + Helper.standardContainerOffset, false)
 
-  -- Columns 4-6 also carry a leg row's operation, volume and price, so each is
-  -- measured over both.
+  -- Columns 4-6 also carry a leg row's operation, volume and price.
   setTextColWidth(t, 2, ReadText(PAGE, 110), agoSample())
   setTextColWidth(t, 4, ReadText(PAGE, 130), sta.formatMoney(config.widthSample.total),
     ReadText(PAGE, 1018), ReadText(PAGE, 1019))
   setTextColWidth(t, 5, ReadText(PAGE, 131), sta.formatMoney(config.widthSample.total),
     tostring(config.widthSample.quantity))
-  setTextColWidth(t, 6, ReadText(PAGE, 132), sta.formatMoney(config.widthSample.total))
+  setTextColWidth(t, 6, ReadText(PAGE, 132), sta.formatMoney(config.widthSample.total),
+    sta.formatPrice(config.widthSample.price))
   setTextColWidth(t, 7, ReadText(PAGE, 133), durationSample())
-  setTextColWidth(t, 8, ReadText(PAGE, 119), string.format("%.0f%%", config.widthSample.load))
+  setTextColWidth(t, 8, ReadText(PAGE, 134), tostring(config.widthSample.jumps))
+  setTextColWidth(t, 9, ReadText(PAGE, 119), string.format("%.0f%%", config.widthSample.load))
 
   local row = t:addRow(false, { fixed = true, bgColor = Color["row_title_background"] })
-  row[1]:setColSpan(8):createText(ship.fullName, Helper.titleTextProperties)
+  row[1]:setColSpan(9):createText(ship.fullName, Helper.titleTextProperties)
 
   row = t:addRow(false, { fixed = true, bgColor = Color["row_background_unselectable"] })
   row[2]:createText(ReadText(PAGE, 110), { halign = "right" })
@@ -1330,14 +1283,14 @@ function menu.createTradesPanel(x, width)
   row[5]:createText(ReadText(PAGE, 131), { halign = "right" })
   row[6]:createText(ReadText(PAGE, 132), { halign = "right" })
   row[7]:createText(ReadText(PAGE, 133), { halign = "right" })
-  row[8]:createText(ReadText(PAGE, 119), { halign = "right" })
+  row[8]:createText(ReadText(PAGE, 134), { halign = "right" })
+  row[9]:createText(ReadText(PAGE, 119), { halign = "right" })
 
-  -- Measured, not derived: the title row is taller than the header row below it.
-  -- Expanded trades put their legs on top of the page and are what the height cap
-  -- on this table is still for.
+  -- Measured, not derived: the title row is taller than the header below it. The
+  -- height cap stays for expanded trades, whose legs go on top of the page.
   local first, last = detailPage(#trades, t:getFullHeight())
 
-  -- Newest first, so the first page is the newest slice.
+  -- Newest first, so the first page is the recent tail.
   for j = first, last do
     local i = #trades - j + 1
     local trade = trades[i]
@@ -1352,7 +1305,10 @@ function menu.createTradesPanel(x, width)
     row[6]:createText(sta.formatMoney(trade.profit),
       { halign = "right", color = (trade.profit >= 0) and Color["text_positive"] or Color["text_negative"] })
     row[7]:createText(sta.formatDuration(trade.duration), { halign = "right" })
-    row[8]:createText(string.format("%.0f%%", trade.load), { halign = "right" })
+    -- A dash, not a zero: the graph may not be loaded, or the route unreachable.
+    local jumps = staTrades.jumpsOf(trade)
+    row[8]:createText(jumps and tostring(jumps) or "-", { halign = "right" })
+    row[9]:createText(string.format("%.0f%%", trade.load), { halign = "right" })
 
     if menu.expanded[key] then
       -- A leg lines up under the trade row: station in the ware column, then
@@ -1367,7 +1323,7 @@ function menu.createTradesPanel(x, width)
         legrow[4]:createText(ReadText(PAGE, isSale and 1019 or 1018),
           { halign = "center", color = isSale and Color["text_positive"] or Color["text_negative"] })
         legrow[5]:createText(tostring(leg.vol), { halign = "right" })
-        legrow[6]:createText(sta.formatMoney(leg.price), { halign = "right" })
+        legrow[6]:createText(sta.formatPrice(leg.price), { halign = "right" })
       end
       for _, leg in ipairs(trade.purchases) do legRow(leg, false) end
       for _, leg in ipairs(trade.sales) do legRow(leg, true) end
@@ -1406,15 +1362,14 @@ function menu.createGraphPanel(x, width)
       totalPoints, #lines, config.maxTotalPoints)
   end
 
-  -- The graph widget has no legend of its own, and the ship list only colours the
-  -- rows currently plotted, so the same bottom legend serves here.
+  -- The graph widget has no legend of its own, so the bottom one serves here too.
   local legendEntries = {}
   for _, line in ipairs(lines) do
     legendEntries[#legendEntries + 1] = { key = line.id, name = line.ship.fullName }
   end
 
-  -- The graph cell needs an explicit height: keep the screen's own aspect ratio,
-  -- capped at what the legend leaves above it.
+  -- The cell needs an explicit height: the screen's own aspect ratio, capped at
+  -- what the legend leaves above it.
   local graphHeight = math.floor(math.min(width * Helper.viewHeight / Helper.viewWidth,
     contentBottom(#legendEntries) - Helper.frameBorder))
   local t = menu.infoFrame:addTable(1, { tabOrder = 2, width = width, x = x, y = Helper.frameBorder })
@@ -1455,21 +1410,16 @@ function menu.createGraphPanel(x, width)
   createLegend(x, width, legendEntries, 3, shipColor)
 end
 
--- Horizontal stacked bar built from background-coloured cells: the only way to
--- get a segmented bar out of the X4 table widget, which has no bar chart. A table
--- is capped at 13 columns, so the bar is spread over menu.barTables tables put
--- side by side; every row exists in all of them, which keeps the rows aligned.
---
--- None of those tables is meant to scroll - they cannot be kept in sync - so as
--- many rows as fit are drawn and the rest is reached page by page.
+-- Stacked bars built from background-coloured cells, the table widget's only route
+-- to a segmented bar. The 13-column cap is beaten by putting menu.barTables tables
+-- side by side; every row exists in all of them, which keeps them aligned.
 function menu.createRankedPanel(x, width, groupBy)
   local groups = rankedRows(groupBy)
   if #groups == 0 then
     return emptyPanel(x, width, 1016)
   end
 
-  -- Legend over the whole ranking, not just this page, so an entry keeps its
-  -- place in the list while paging; its height is what the bars have to fit above.
+  -- Over the whole ranking, not just this page: its height is what the bars fit above.
   local seen, legendEntries = {}, {}
   for _, g in ipairs(groups) do
     for _, p in ipairs(g.partOrder) do
@@ -1481,8 +1431,7 @@ function menu.createRankedPanel(x, width, groupBy)
   end
   table.sort(legendEntries, function(a, b) return a.name < b.name end)
 
-  -- Bar length is measured against the largest total in the whole ranking, so
-  -- rows stay comparable from page to page.
+  -- Against the largest total of the whole ranking, so rows stay comparable per page.
   local maxTotal = 0 ---@type number
   for _, g in ipairs(groups) do
     maxTotal = math.max(maxTotal, math.abs(g.total))
@@ -1496,12 +1445,10 @@ function menu.createRankedPanel(x, width, groupBy)
   local segments  = numBars * cols
   local labelWidth = math.floor(menu.leftPanelWidth * config.nameColShare)
   local totalWidth = math.floor(menu.leftPanelWidth * config.sumColShare)
-  -- Inner borders of the bar tables, the one inside the label table, and a gap
-  -- in front of every bar table.
+  -- Inner borders of the bar tables, the label table's own, and a gap per bar table.
   local borders   = (numBars * (cols - 1) + numBars + 1) * Helper.borderSize
   local segWidth  = math.max(1, math.floor((width - labelWidth - totalWidth - borders) / segments))
-  -- Whatever flooring the segments left over goes to the total column, so the
-  -- panel still ends flush with the right edge.
+  -- The total column takes what the segments' flooring left, so the panel ends flush.
   local restWidth = math.floor(width - labelWidth - borders - segments * segWidth)
   if restWidth > totalWidth then
     totalWidth = restWidth
@@ -1509,8 +1456,8 @@ function menu.createRankedPanel(x, width, groupBy)
 
   local bottom = contentBottom(#legendEntries)
 
-  -- The title spans the whole panel in a table of its own: the data tables below
-  -- then start at the same y with no title row of their own to keep in step.
+  -- The title gets a table of its own, so no data table carries a header row and
+  -- none of them can start a row higher than its neighbour.
   local titleTable = menu.infoFrame:addTable(1, {
     tabOrder = 2, width = width, x = x, y = Helper.frameBorder,
     maxVisibleHeight = scrollHeight(Helper.frameBorder, bottom),
@@ -1524,20 +1471,17 @@ function menu.createRankedPanel(x, width, groupBy)
   local function addDataTable(numCols, tableWidth, tableX, tabOrder)
     return menu.infoFrame:addTable(numCols, {
       tabOrder = tabOrder, width = tableWidth, x = tableX, y = dataY, borderEnabled = true,
-      -- Paging fills these to fit, so nothing should ever scroll; the cap is what
-      -- keeps a row-height misjudgement to a clipped row instead of a lost table.
+      -- Paging fills these to fit; the cap keeps a row-height misjudgement to one
+      -- clipped row instead of a dropped table.
       maxVisibleHeight = scrollHeight(dataY, bottom),
-      -- All columns are explicit, so there is none left to take the reserved
-      -- scrollbar space.
+      -- No variable column left to take the reserved space.
       reserveScrollBar = false,
       backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
     })
   end
 
-  -- Name and total are a table of their own, and the first one built: the frame
-  -- hands out its rows in that order, so they are the last thing an exhausted
-  -- row pool can take away. Every bar table right of it holds nothing but
-  -- segments, all of them equally wide, which is what makes the split seamless.
+  -- Name and total are built first: the frame hands out rows in creation order, so
+  -- what the player reads is the last thing an exhausted pool takes away.
   local labelTable = addDataTable(2, labelWidth + totalWidth + Helper.borderSize, x, 3)
   labelTable:setColWidth(1, labelWidth, false)
   labelTable:setColWidth(2, totalWidth, false)
@@ -1553,8 +1497,7 @@ function menu.createRankedPanel(x, width, groupBy)
     tableX = tableX + barWidth + Helper.borderSize
   end
 
-  -- No table carries a header of its own any more, so the rows start right below
-  -- the title table.
+  -- No data table carries a header, so the rows start right below the title table.
   local layout = pageLayout(#groups, dataY, bottom, 0,
     numBars + 1, legendRowCount(#legendEntries))
 
@@ -1576,8 +1519,8 @@ function menu.createRankedPanel(x, width, groupBy)
       return rows[math.floor((n - 1) / cols) + 1][(n - 1) % cols + 1]
     end
 
-    -- Bar length is the group's share of the largest total, so rows stay
-    -- comparable; segment widths inside it are each part's share of the group.
+    -- Bar length is the group's share of the largest total; segment widths inside
+    -- it are each part's share of the group.
     local barCells = math.max(1, math.floor(math.abs(g.total) / maxTotal * segments + 0.5))
     local partsTotal = 0 ---@type number
     for _, p in ipairs(g.partOrder) do
@@ -1599,23 +1542,22 @@ function menu.createRankedPanel(x, width, groupBy)
       for _ = 1, math.min(cells, barCells - filled) do
         filled = filled + 1
         local cell = segmentCell(filled)
-        -- A segment is a bare coloured cell, so the legend text is its only label.
+        -- A bare coloured cell, so the legend is its only label.
         cell:createText("", { mouseOverText = p.name })
         cell.properties.cellBGColor = colorFor(p.key)
       end
     end
   end
 
-  -- Ground truth for both budgets: height against the space pageLayout counted,
-  -- and the rows this frame asks the pool for.
+  -- Both budgets, measured: the height against the space, and the rows against the pool.
   local pageRows  = layout.last - layout.first + 1
   local fixedRows = (menu.leftRowCount or 0) + 2 + legendRowCount(#legendEntries)
   local frameRows = fixedRows + (numBars + 1) * pageRows
   sta.traceLog("rankedPanel: table height %d, budget %d, %d frame row(s) of %d.",
     labelTable:getFullHeight(), bottom - dataY - pagerHeight() - Helper.borderSize,
     frameRows, poolBudget())
-  -- pageLayout counts against the same budget, so this can only mean the count is
-  -- off somewhere - past the pool the tables created last lose their rows silently.
+  -- pageLayout counts against the same budget, so this means the count is off
+  -- somewhere: past the pool the tables created last lose their rows silently.
   if frameRows > poolBudget() then
     sta.debugLog("rankedPanel: %d row(s) requested, pool budget is %d - rows will be skipped.",
       frameRows, poolBudget())
@@ -1625,9 +1567,8 @@ function menu.createRankedPanel(x, width, groupBy)
   createLegend(x, width, legendEntries, 5 + numBars, colorFor)
 end
 
--- One bar per ship, so no segments and no legend: the real status bar widget does
--- the drawing here. A single table, so nothing has to be kept in sync with
--- anything - it just scrolls, and needs neither paging nor a height budget.
+-- One bar per ship, so no segments and no legend: the status bar widget draws it.
+-- A single table, so it just scrolls and needs neither paging nor a height budget.
 function menu.createCargoLoadPanel(x, width)
   local rows = cargoLoadRows()
   if #rows == 0 then
@@ -1670,6 +1611,12 @@ end
 -- *** standard menu callbacks ***
 
 function menu.onUpdate()
+  -- Drained here, not where it was raised: onRowChanged runs inside the engine's
+  -- own frame setup, which must not be torn down under it.
+  if menu.refreshQueued then
+    menu.refreshQueued = nil
+    return menu.createFrame()
+  end
   if menu.infoFrame then
     menu.infoFrame:update()
   end
@@ -1680,9 +1627,8 @@ function menu.onCloseElement(dueToClose)
   menu.cleanup()
 end
 
--- State is left unset here on purpose: menu.onShowMenu builds it on first open,
--- by which point MD has populated the config blackboard this mod reads its
--- filter defaults from.
+-- State is left unset: onShowMenu builds it on first open, by which point MD has
+-- populated the config blackboard the filter defaults come from.
 local function Init()
   init()
   RegisterEvent("ShipsTradeAnalyzer.OpenMenu", onOpenMenuEvent)

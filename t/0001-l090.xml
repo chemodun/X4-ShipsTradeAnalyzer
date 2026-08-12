@@ -40,6 +40,7 @@
             <t id="131">Satılan</t>
             <t id="132">Kâr</t>
             <t id="133">Süre</t>
+            <t id="134">Sıçrama</t>
 
             <!-- menu -->
             <t id="1000">Gemi Ticaret Analizcisi</t>
@@ -75,6 +76,7 @@
             <t id="1033">İşlemi olanlar</t>
 
             <!-- Options page -->
+            <t id="90101">Veri Yenileme Aralığı</t>
             <t id="90102">İç ticaretleri varsayılan olarak dahil et</t>
 
             <!-- Section: Debug (90900) -->

@@ -1,16 +1,14 @@
 -- Ships Trade Analyzer - completed-trade pairing.
 --
--- Turns a ship's flat transaction list into completed trades (buy legs matched
--- against the sell legs that emptied them again), so profit is real rather than
--- estimated against the ware's average price. Port of GetFullTrades from
--- X4PlayerShipTradeAnalyzer (Models/FullTrade.cs), same segmenting rules.
---
--- A segment runs per ship and per ware, opens on a buy, and closes when the
--- accumulated volume returns to zero. A buy arriving after selling has started
--- closes the current segment and opens a new one; an unbalanced segment is
--- dropped rather than reported.
+-- Pairs buy legs against the sell legs that emptied them again, so profit is real
+-- rather than estimated. A segment runs per ship and per ware, opens on a buy and
+-- closes when the accumulated volume returns to zero; a buy after selling started
+-- closes the segment and opens a new one. Port of GetFullTrades (FullTrade.cs).
 
+---@diagnostic disable-next-line: unresolved-require
 local sta = require("extensions.ships_trade_analyzer.ui.sta_data")
+---@diagnostic disable-next-line: unresolved-require
+local staGraph = require("extensions.ships_trade_analyzer.ui.sta_graph")
 
 local staTrades = {}
 
@@ -22,9 +20,35 @@ local function makeLeg(tx, volume)
     station    = tx.pName,
     sector     = tx.pSector,
     sectorOwner = tx.pSecOwner,
+    sectorMacro = tx.pSecMacro,
     owner      = tx.pOwner,
     icon       = tx.pIcon,
   }
+end
+
+-- Hops summed along the legs in time order; a segment never interleaves, so
+-- purchases then sales is the route flown. nil on any unresolvable pair, never a
+-- partial sum.
+local function chainJumps(purchases, sales)
+  local total = 0
+  local previous ---@type string?
+  for _, legs in ipairs({ purchases, sales }) do
+    for _, leg in ipairs(legs) do
+      local macro = leg.sectorMacro
+      if macro == nil or macro == "" then
+        return nil
+      end
+      if previous ~= nil then
+        local hops = staGraph.getJumps(previous, macro)
+        if hops == nil then
+          return nil
+        end
+        total = total + hops
+      end
+      previous = macro
+    end
+  end
+  return previous ~= nil and total or nil
 end
 
 local function allPlayerOwned(legs)
@@ -58,8 +82,7 @@ local function buildForShip(ship)
 
   local function finish()
     if trade ~= nil and trade.bought > 0 and trade.sold > 0 then
-      -- More bought than sold: keep only the newest purchases that the sales
-      -- actually cleared, so the reported buy cost matches the sold volume.
+      -- Keep only the newest purchases the sales cleared, so buy cost matches sold volume.
       if trade.bought > trade.sold then
         local kept, bought, cost = {}, 0, 0
         for i = #purchases, 1, -1 do
@@ -144,13 +167,20 @@ local function buildForShip(ship)
     end
   end
 
-  -- A segment still holding cargo is deliberately not emitted: its profit is
-  -- not known until the rest is sold.
+  -- A segment still holding cargo is not emitted: its profit is not known yet.
   return trades
 end
 
--- Cached on the ship record: the pairing only depends on the scan, and every
--- filter that applies to trades is applied afterwards.
+-- Memoised only on success: the trade cache outlives the arrival of MD's graph, so
+-- a trade paired before it loaded would keep a nil forever.
+function staTrades.jumpsOf(trade)
+  if trade.jumps == nil then
+    trade.jumps = chainJumps(trade.purchases, trade.sales)
+  end
+  return trade.jumps
+end
+
+-- Cached on the ship record: the pairing depends on the scan alone, filters apply after.
 function staTrades.getTrades(ship)
   if ship.trades == nil then
     ship.trades = buildForShip(ship)
@@ -177,8 +207,7 @@ function staTrades.filteredTrades(ship, filter)
   return result
 end
 
--- Ships passing the filter with their completed-trade totals, sorted the same
--- way sta.filteredShips sorts the transaction view.
+-- Same shape and sort as sta.filteredShips, over completed trades.
 function staTrades.filteredShips(filter, sortBy)
   local result = {}
   for _, ship in ipairs(sta.ships) do
@@ -208,8 +237,7 @@ function staTrades.filteredShips(filter, sortBy)
   return result
 end
 
--- Ranked breakdown over completed trades, mirroring sta.rankedBreakdown's shape
--- so the ranked views can render either analysis mode from one code path.
+-- Same shape as sta.rankedBreakdown, so one render path serves both analysis modes.
 function staTrades.rankedBreakdown(filter, groupBy, reverse)
   local groups = {}
   local order = {}
@@ -264,7 +292,7 @@ function staTrades.rankedBreakdown(filter, groupBy, reverse)
   return order
 end
 
--- Load distribution over completed trades: how full the ship actually ran.
+-- How full the ship actually ran, over completed trades.
 function staTrades.cargoLoad(filter, reverse)
   local rows = {}
   for _, ship in ipairs(sta.ships) do

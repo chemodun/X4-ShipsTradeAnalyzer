@@ -10,7 +10,7 @@ Brings the analysis of [X4 Player Ship Trade Analyzer](https://www.nexusmods.com
   - **By Transactions** - every buy and sell is counted on its own. Faster and shows more, but profit is estimated against the ware's average price.
   - **By Trades** - buys are matched against the sells that emptied the hold again, so profit is real. Shows fewer rows, since a ship still carrying cargo has no completed trade yet.
 - **Five views**, both modes:
-  - **Details** - the full table for the selected ship, newest first. Time, operation, ware, station, sector, price, quantity, total, estimated profit and cargo load. In By Trades mode each row expands to the individual buy and sell legs behind it. A busy ship is paged rather than scrolled, so a page always holds exactly what the screen shows.
+  - **Details** - the full table for the selected ship, newest first. Time, operation, ware, station, sector, price, quantity, total, estimated profit and cargo load. In By Trades mode a row instead shows what the trade bought, sold and earned, how long it took, how many gates it crossed and how full the hold ran, and expands to the individual buy and sell legs behind it. A busy ship is paged rather than scrolled, so a page always holds exactly what the screen shows.
   - **Profit over Time** - cumulative profit per ship as a line graph, up to 8 ships at once.
   - **Ships by Wares** - ranked bars, one per ship, split by the wares it traded.
   - **Wares by Ships** - the same, transposed: one bar per ware, split by the ships that carried it.
@@ -29,13 +29,14 @@ Opening it on a ship preselects that ship. Opening it on a station preselects th
 
 A ship is picked by making its row the current one in the list on the left, exactly like the object list on the map. **Profit over Time** draws several ships at once, so there the list works like the map's as well: ctrl-click adds or removes a ship, shift-click takes a range, and a plain click goes back to a single one. Up to 8 lines are drawn - picking a ninth ship drops the one picked first.
 
-The data is read when the menu opens. Press **Refresh** to read it again after playing on.
+The data is read when the menu opens, and read again on a later open once the last reading is older than the **Data Refresh Interval** - one in-game minute by default. Press **Refresh** to read it again at any time.
 
 ## Settings
 
 Found under Extension Options.
 
 - **Include Internal Trades by Default** - the starting state of the internal-trade filter in the menu.
+- **Data Refresh Interval** - how old the last reading may be before opening the menu takes a new one, 0 to 10 in-game minutes. At 0 every open re-reads the trade log; at 10 a reading is kept for ten minutes and only **Refresh** replaces it sooner.
 - **Debug Level** - None, Debug or Trace. Leave at None unless you are reporting a problem.
 
 ## Requirements
@@ -50,6 +51,7 @@ Found under Extension Options.
 - Profit in By Transactions mode is an estimate. For container wares it compares against the ware's average price; for mined solids, liquids and gases there is no purchase to compare against, so the whole sale counts as profit.
 - Ships carrying scrap always read as fully loaded - the game does not report a usable per-unit volume for it.
 - The game's UI has no bar chart widget, so the ware breakdowns and the load view are drawn as horizontal bars rather than column charts.
+- **Jumps** counts gates, using the galaxy's own gate network - including sectors you have not explored yet. In By Trades it is the gates between the stations one trade visited; in By Transactions it is the gates flown to reach that stop from wherever the ship traded before, counted over its whole log rather than over the rows a filter left visible. It reads as a dash when a sector cannot be resolved or no gate route connects them.
 
 ## Credits
 

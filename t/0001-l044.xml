@@ -40,6 +40,7 @@
             <t id="131">Sold</t>
             <t id="132">Profit</t>
             <t id="133">Duration</t>
+            <t id="134">Jumps</t>
 
             <!-- menu -->
             <t id="1000">Ships Trade Analyzer</t>
@@ -75,6 +76,7 @@
             <t id="1033">With Transactions</t>
 
             <!-- Options page -->
+            <t id="90101">Data Refresh Interval</t>
             <t id="90102">Include Internal Trades by Default</t>
 
             <!-- Section: Debug (90900) -->

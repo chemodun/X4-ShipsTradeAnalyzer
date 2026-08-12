@@ -5,6 +5,7 @@
         <dependency name="sn_mod_support_apis" />
         <dependency name="ego_detailmonitor" />
         <file name="ui/sta_data.lua" />
+        <file name="ui/sta_graph.lua" />
         <file name="ui/sta_trades.lua" />
         <file name="ui/sta_menu.lua" />
     </environment>

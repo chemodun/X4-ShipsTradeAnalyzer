@@ -40,6 +40,7 @@
             <t id="131">Venduto</t>
             <t id="132">Profitto</t>
             <t id="133">Durata</t>
+            <t id="134">Salti</t>
 
             <!-- menu -->
             <t id="1000">Analizzatore commerciale delle navi</t>
@@ -75,6 +76,7 @@
             <t id="1033">Con transazioni</t>
 
             <!-- Options page -->
+            <t id="90101">Intervallo di aggiornamento dei dati</t>
             <t id="90102">Includi gli scambi interni per impostazione predefinita</t>
 
             <!-- Section: Debug (90900) -->
