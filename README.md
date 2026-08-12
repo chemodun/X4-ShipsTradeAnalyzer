@@ -40,7 +40,7 @@ Brings the analysis of [X4 Player Ship Trade Analyzer](https://www.nexusmods.com
 ## Installation
 
 - **Steam Workshop**: [Ships Trade Analyzer](https://steamcommunity.com/sharedfiles/filedetails/?id=0).
-- **Nexus Mods**: [Ships Trade Analyzer](https://www.nexusmods.com/x4foundations/mods/)
+- **Nexus Mods**: [Ships Trade Analyzer](https://www.nexusmods.com/x4foundations/mods/2320)
 
 ## Usage
 
