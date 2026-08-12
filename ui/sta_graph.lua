@@ -143,14 +143,17 @@ function staGraph.onSectorGraphReady()
   staGraph.adjacency = nil
   staGraph.rows = {}
   sta.debugLog("graph: MD reports a new sector graph, dropping the cached one.")
-  -- A scan that ran before the graph arrived left every transaction unresolved.
+  -- A scan that ran before the graph arrived left every transaction unresolved and
+  -- every injected leg dated mid-gap.
   if sta.scanned then
+    sta.retimeInjected()
     staGraph.fillTransactionJumps()
   end
 end
 
 function staGraph.init()
   sta.afterScan = staGraph.fillTransactionJumps
+  sta.jumpsBetween = staGraph.getJumps
   RegisterEvent("ShipsTradeAnalyzer.SectorGraphReady", staGraph.onSectorGraphReady)
   requestBuild("game loaded")
 end

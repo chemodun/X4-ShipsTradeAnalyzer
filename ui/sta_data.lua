@@ -29,12 +29,21 @@ local sta = {
   wareCache   = {},  -- [wareId] = { name, transport, volume, avgprice }
   sectorOwner = {},  -- [sectorid] = owner faction id, "" when unowned
   sectorMacro = {},  -- [sectorid] = macro name, the key sta_graph joins on
+  stationInfo = {},  -- [station key] = the home station as a counterpart record
+  stationPrice = {}, -- [station key] = { buy = {}, sell = {} }, current offer prices
   widestWareName = "", -- "" if the ware list was unreadable at init
 
   scanTime      = 0, -- game time the last scan ran at
+  -- What a memo keys on: two scans can share a game second, scanTime cannot tell them apart.
+  scanCount     = 0,
   scanned       = false,
   totalEntries  = 0, -- trade entries kept across every ship
   skippedShips  = 0, -- ships whose log exceeded maxEntriesPerShip
+  injectedEntries = 0, -- home-station legs invented across every ship
+
+  -- The engine logs no trade between a player station and a player ship; off shows
+  -- the log raw, on reconstructs the missing half.
+  injectInternal = true,
 }
 
 local config = {
@@ -46,6 +55,8 @@ local config = {
   wareColumnTransports = { container = true, solid = true, liquid = true, gas = true },
   -- Fallback for a missing Options key; 0 means rescan on every menu open.
   rescanIntervalMinutes = 1,
+  -- Two same-way trades of one ware further apart than this are separate trips.
+  multiHopSeconds = 600,
 }
 
 -- *** debug helpers ***
@@ -318,6 +329,22 @@ local function estimateProfit(ware, isSale, sum, volume)
   return isSale and sum or -sum
 end
 
+-- No usable per-unit volume against the ship's capacity reads as a full load.
+local function loadPercent(ship, wareId, ware, used)
+  local capacity = ship.capacity[ware.transport]
+  if config.fullLoadWares[wareId] or capacity == nil or capacity <= 0 then
+    return 100
+  end
+  return math.min(100, used / capacity * 100)
+end
+
+-- The previous stop of the whole log, not of a filtered view: the route flown.
+local function linkPrevSectors(ship)
+  for i = 2, #ship.tx do
+    ship.tx[i].prevSecMacro = ship.tx[i - 1].pSecMacro
+  end
+end
+
 local function readShipLog(ship, startTime, endTime)
   local id64 = ship.id64
   local total = tonumber(C.GetNumTransactionLog(id64, startTime, endTime)) or 0
@@ -356,13 +383,6 @@ local function readShipLog(ship, startTime, endTime)
           local ware = sta.getWare(wareId)
           local sum  = price * amount
           local used = amount * ware.volume
-          local capacity = ship.capacity[ware.transport]
-          local load ---@type number
-          if config.fullLoadWares[wareId] or capacity == nil or capacity <= 0 then
-            load = 100
-          else
-            load = math.min(100, used / capacity * 100)
-          end
 
           local tx = {
             t        = tonumber(buf[i].time) or 0,
@@ -373,7 +393,7 @@ local function readShipLog(ship, startTime, endTime)
             sum      = sum,
             profit   = estimateProfit(ware, isSale, sum, amount),
             used     = used,
-            load     = load,
+            load     = loadPercent(ship, wareId, ware, used),
             pName    = displayName(partner.name, partner.idcode),
             pOwner   = partner.owner,
             pSector  = partner.sector,
@@ -394,11 +414,204 @@ local function readShipLog(ship, startTime, endTime)
   -- The engine returns entries newest-first in places; pairing and the graph both
   -- assume ascending time.
   table.sort(ship.tx, function(a, b) return a.t < b.t end)
-  -- The previous stop of the whole log, not of a filtered view: the route flown.
-  for i = 2, #ship.tx do
-    ship.tx[i].prevSecMacro = ship.tx[i - 1].pSecMacro
-  end
   traceLog("readShipLog: %s kept %d trade entries.", ship.fullName, #ship.tx)
+end
+
+-- *** the internal legs the engine never logs ***
+
+-- The home station as a counterpart record, cached: one station commands many ships.
+local function homeInfo(ship)
+  local info = sta.stationInfo[ship.stationKey]
+  if info == nil then
+    info = counterpartInfo(ship.stationId, ship.stationName, "")
+    sta.stationInfo[ship.stationKey] = info
+  end
+  return info
+end
+
+-- The station buys what the ship sells. False when that side's price is automatic:
+-- it moves with the stock, so what it was at the time of the leg is unknowable.
+local function homePrice(ship, home, wareId, isSale)
+  local prices = sta.stationPrice[ship.stationKey]
+  if prices == nil then
+    prices = { buy = {}, sell = {} }
+    sta.stationPrice[ship.stationKey] = prices
+  end
+  local side = isSale and prices.buy or prices.sell
+  local price = side[wareId]
+  if price == nil then
+    price = false
+    if home.luaId ~= nil then
+      local ok, override = pcall(HasContainerWarePriceOverride, home.luaId, wareId, isSale)
+      if ok and override then
+        local got, value = pcall(GetContainerWarePrice, home.luaId, wareId, isSale)
+        price = got and tonumber(value) or false
+      end
+    end
+    side[wareId] = price
+    traceLog("homePrice: %s %s %s price is %s.", ship.stationName or "?", wareId,
+      isSale and "buy" or "sell", price and tostring(price) or "automatic")
+  end
+  return price
+end
+
+-- The gap split by the gates flown either side. No jump counts as half a hop, which
+-- is what lands a stop in both sectors - or one the graph cannot place - mid-gap.
+local function internalTime(previous, following, homeMacro)
+  local share = 0.5
+  if sta.jumpsBetween ~= nil then
+    local before = sta.jumpsBetween(previous.pSecMacro, homeMacro)
+    local after  = sta.jumpsBetween(homeMacro, following.pSecMacro)
+    if before ~= nil and after ~= nil then
+      before = (before > 0) and before or 0.5
+      after  = (after > 0) and after or 0.5
+      share  = before / (before + after)
+    end
+  end
+  return previous.t + (following.t - previous.t) * share
+end
+
+-- nil when the station prices the ware automatically: nothing is invented then.
+local function internalEntry(ship, home, previous, following, isSale, volume)
+  local wareId = following.ware
+  local price  = homePrice(ship, home, wareId, isSale)
+  if not price then
+    return nil
+  end
+  local ware = sta.getWare(wareId)
+  local sum  = price * volume
+  local used = volume * ware.volume
+  return {
+    t        = internalTime(previous, following, home.sectorMacro),
+    sale     = isSale,
+    ware     = wareId,
+    price    = price,
+    vol      = volume,
+    sum      = sum,
+    profit   = estimateProfit(ware, isSale, sum, volume),
+    used     = used,
+    load     = loadPercent(ship, wareId, ware, used),
+    pName    = displayName(home.name, home.idcode),
+    pOwner   = home.owner,
+    pSector  = home.sector,
+    pSecOwner = home.sectorOwner,
+    pSecMacro = home.sectorMacro,
+    pIcon    = home.icon,
+    pLuaId   = home.luaId,
+    internal = true,
+  }
+end
+
+-- What the hold takes of the ware, 0 when the ship's capacity for it is unknown.
+local function unitCapacity(ship, ware)
+  local capacity = ship.capacity[ware.transport]
+  if capacity == nil or capacity <= 0 or ware.volume <= 0 then
+    return 0
+  end
+  return capacity / ware.volume
+end
+
+-- One visit home supplies the whole run of sales that follows, so this reaches
+-- forward to the next purchase, to the hold's limit, or to a gap too long for a trip.
+local function shortfall(ship, entries, index, wareId, ware, held)
+  local maxUnits = unitCapacity(ship, ware)
+  -- Nothing bounds the scan without a capacity either.
+  if maxUnits <= 0 then
+    return entries[index].vol - held
+  end
+  local wanted, last = 0, nil
+  for i = index, #entries do
+    local tx = entries[i]
+    if tx.ware == wareId then
+      if not tx.sale or (last ~= nil and tx.t - last > config.multiHopSeconds) then
+        break
+      end
+      wanted, last = wanted + tx.vol, tx.t
+      if wanted >= maxUnits then
+        wanted = maxUnits
+        break
+      end
+    end
+  end
+  return wanted - held
+end
+
+-- Cargo the ship cannot account for gives a home stop away: a sale larger than it
+-- holds was loaded there, a purchase it has no room for was preceded by unloading.
+local function injectForShip(ship)
+  local home = homeInfo(ship)
+  local merged, onboard, lastBuy, added = {}, {}, {}, 0
+
+  for index, tx in ipairs(ship.tx) do
+    local ware = sta.getWare(tx.ware)
+    local held = onboard[tx.ware] or 0
+    local isSale, volume
+    if tx.sale then
+      local missing = shortfall(ship, ship.tx, index, tx.ware, ware, held)
+      if missing > 0 then
+        isSale, volume = false, missing
+      end
+    elseif held > 0 then
+      local maxUnits = unitCapacity(ship, ware)
+      local since = lastBuy[tx.ware]
+      if (maxUnits > 0 and held + tx.vol > maxUnits)
+          or (since ~= nil and tx.t - since > config.multiHopSeconds) then
+        isSale, volume = true, held
+      end
+    end
+
+    local previous = merged[#merged]
+    if volume ~= nil then
+      -- The cargo moved even where the leg cannot be priced or dated; not tracking
+      -- it would invent a second visit later in the run.
+      onboard[tx.ware] = isSale and 0 or (held + volume)
+      local entry = previous and internalEntry(ship, home, previous, tx, isSale, volume)
+      if entry then
+        merged[#merged + 1] = entry
+        ship.profit   = ship.profit + entry.profit
+        ship.turnover = ship.turnover + entry.sum
+        added = added + 1
+      end
+    end
+
+    merged[#merged + 1] = tx
+    if tx.sale then
+      onboard[tx.ware] = math.max(0, (onboard[tx.ware] or 0) - tx.vol)
+    else
+      onboard[tx.ware] = (onboard[tx.ware] or 0) + tx.vol
+      lastBuy[tx.ware] = tx.t
+    end
+  end
+
+  if added > 0 then
+    ship.tx = merged
+    sta.injectedEntries = sta.injectedEntries + added
+    traceLog("injectForShip: %s gained %d leg(s) at %s.", ship.fullName, added, ship.stationName)
+  end
+end
+
+-- A graph arriving after the scan leaves every leg dated mid-gap. Safe in place: a
+-- new time stays inside the gap, so the order holds - but the paired trades do not.
+function sta.retimeInjected()
+  if sta.jumpsBetween == nil then
+    return
+  end
+  local moved = 0
+  for _, ship in ipairs(sta.ships) do
+    local shipMoved = 0
+    for i = 2, #ship.tx - 1 do
+      local tx = ship.tx[i]
+      if tx.internal then
+        tx.t = internalTime(ship.tx[i - 1], ship.tx[i + 1], tx.pSecMacro)
+        shipMoved = shipMoved + 1
+      end
+    end
+    if shipMoved > 0 then
+      ship.trades = nil
+      moved = moved + shipMoved
+    end
+  end
+  debugLog("retimeInjected: re-dated %d internal leg(s).", moved)
 end
 
 local function buildShip(luaId)
@@ -450,9 +663,13 @@ function sta.scan()
   sta.ships = {}
   sta.totalEntries = 0
   sta.skippedShips = 0
+  sta.injectedEntries = 0
   sta.scanTime = now
+  sta.scanCount = sta.scanCount + 1
   sta.sectorOwner = {} -- sectors change hands; only cache within a scan
   sta.sectorMacro = {} -- a macro never changes, but the ids keying it go stale
+  sta.stationInfo = {} -- a station moves sector and reprices between scans
+  sta.stationPrice = {}
 
   -- Every listable ship is kept, traded or not; the withTransactions filter is
   -- what narrows the views, and the station options derive from the same set.
@@ -462,6 +679,10 @@ function sta.scan()
     if isListableShip(luaId) then
       local ship = buildShip(luaId)
       readShipLog(ship, 0, now)
+      if sta.injectInternal and ship.stationId ~= nil then
+        injectForShip(ship)
+      end
+      linkPrevSectors(ship)
       sta.ships[#sta.ships + 1] = ship
       if #ship.tx > 0 then
         tradingShips = tradingShips + 1
@@ -473,8 +694,8 @@ function sta.scan()
   end
 
   sta.scanned = true
-  debugLog("scan: %d ship(s), %d trading, %d trade entries, %d under a station.",
-    #sta.ships, tradingShips, sta.totalEntries, shipsWithStation)
+  debugLog("scan: %d ship(s), %d trading, %d trade entries, %d under a station, %d internal leg(s).",
+    #sta.ships, tradingShips, sta.totalEntries, shipsWithStation, sta.injectedEntries)
 
   -- sta_graph installs its jump pass here; it requires this module, not the other way.
   if sta.afterScan ~= nil then
@@ -510,7 +731,7 @@ end
 -- The stations of exactly the ships the views show, so an option is never empty.
 -- Memoised on the one filter field it depends on: the dropdown rebuilds per frame.
 function sta.stationOptions(filter)
-  local key = tostring(filter.withTransactions) .. "|" .. tostring(sta.scanTime)
+  local key = tostring(filter.withTransactions) .. "|" .. tostring(sta.scanCount)
   if sta.stationOptionsKey ~= key then
     local list, seen = {}, {}
     for _, ship in ipairs(sta.ships) do

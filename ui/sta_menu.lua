@@ -191,7 +191,7 @@ end
 local function shipRows()
   local f = menu.filter
   local key = table.concat({ menu.mode, menu.sortBy, f.parentStation, f.shipClass,
-    f.cargoType, tostring(f.withTransactions), tostring(sta.scanTime) }, "|")
+    f.cargoType, tostring(f.withTransactions), tostring(sta.scanCount) }, "|")
   if menu.shipRowsKey ~= key then
     if menu.mode == "trades" then
       menu.shipRowsCache = staTrades.filteredShips(f, menu.sortBy)
@@ -494,6 +494,12 @@ function menu.toggleWithTransactions(checked)
     menu.filter.parentStation = "any"
   end
   refreshFromFirstPage()
+end
+
+-- The legs are invented as the log is read, so the flag re-reads it.
+function menu.toggleInjectInternal(checked)
+  sta.injectInternal = checked
+  menu.buttonRefresh()
 end
 
 function menu.toggleReverse(checked)
@@ -957,6 +963,12 @@ function menu.createLeftPanel(x, width)
   end
   row[2]:setColSpan(3):createDropDown(dropdownOptions(modeEntries), { startOption = menu.mode, height = Helper.standardButtonHeight })
   row[2].handlers.onDropDownConfirmed = menu.selectMode
+
+  -- Not a filter: it changes what the log is read as, so it sits above them.
+  row = leftTable:addRow(true, { fixed = true })
+  row[1]:createText(ReadText(PAGE, 1035), { halign = "left" })
+  createCenteredCheckBox(row[2]:setColSpan(3), sta.injectInternal)
+  row[2].handlers.onClick = function(_, checked) return menu.toggleInjectInternal(checked) end
 
   -- Filters
   row = leftTable:addRow(false, { fixed = true, bgColor = Color["row_title_background"] })

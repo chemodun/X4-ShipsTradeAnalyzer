@@ -73,6 +73,7 @@
             <t id="1031">Bar Detail</t>
             <t id="1032">Number of Ships</t>
             <t id="1033">With Transactions</t>
+            <t id="1035">Inject Internal</t>
 
             <!-- Options page -->
             <t id="90101">Data Refresh Interval</t>
