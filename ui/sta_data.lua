@@ -28,8 +28,9 @@ local sta = {
   -- the names vanilla declares; every scan then no-ops instead of erroring.
   available  = false,
 
-  ships      = {},   -- array of ship records, see buildShip()
-  wareCache  = {},   -- [wareId] = { name, transport, volume, avgprice }
+  ships       = {},  -- array of ship records, see buildShip()
+  wareCache   = {},  -- [wareId] = { name, transport, volume, avgprice }
+  sectorOwner = {},  -- [sectorid] = owner faction id, "" when unowned
 
   scanTime      = 0, -- game time the last scan ran at
   scanned       = false,
@@ -87,22 +88,41 @@ end
 
 -- *** formatting (local: both vanilla equivalents are 9.00-only) ***
 
-function sta.formatDuration(seconds)
+-- Vanilla's tiered time formats. The tier is picked on the seconds, never on the
+-- rendered string: two tiers that match in English need not in another language.
+local function formatTiered(seconds, below1h, below1d, above1d)
   seconds = math.max(0, math.floor(tonumber(seconds) or 0))
-  local h = math.floor(seconds / 3600)
-  local m = math.floor((seconds % 3600) / 60)
-  if h > 0 then
-    return string.format("%dh %02dm", h, m)
+  local id
+  if seconds < 3600 then
+    id = below1h
+  elseif seconds < 86400 then
+    id = below1d
+  else
+    id = above1d
   end
-  return string.format("%dm %02ds", m, seconds % 60)
+  return ConvertTimeString(seconds, ReadText(1001, id))
 end
 
+-- A span, the tiers Helper.getPassedTimeShort uses.
+function sta.formatDuration(seconds)
+  return formatTiered(seconds, 210, 207, 205)
+end
+
+-- Time since, the tiers Helper.getPassedTime uses - these carry vanilla's "ago".
 function sta.formatAgo(t, now)
-  return sta.formatDuration((now or sta.scanTime) - t)
+  return formatTiered((now or sta.scanTime) - t, 213, 212, 211)
 end
 
 function sta.formatMoney(value)
   return ConvertMoneyString(math.floor(value + 0.5), false, true, 0, true) .. " " .. ReadText(1001, 101)
+end
+
+-- Owner's faction colour as a colour table; iconString converts it for inline use.
+function sta.factionColor(owner)
+  if owner == nil or owner == "" then
+    return nil
+  end
+  return GetFactionData(owner, "color")
 end
 
 -- Faction-coloured object icon; Helper.createIconStringFactionColored is 9.00-only.
@@ -114,7 +134,7 @@ function sta.iconString(luaId)
   if icon == nil or icon == "" then
     return ""
   end
-  local factioncolor = faction and GetFactionData(faction, "color") or nil
+  local factioncolor = sta.factionColor(faction)
   if factioncolor then
     return string.format("%s\027[%s]\27X ", Helper.convertColorToText(factioncolor), icon)
   end
@@ -212,6 +232,20 @@ local function parentStation(luaId, label)
   return nil, nil, nil
 end
 
+-- Faction holding a sector, which is not the station's own owner. Cached: the
+-- scan walks tens of thousands of transactions over a handful of sectors.
+local function sectorOwnerOf(sectorId)
+  if sectorId == nil or sectorId == 0 then
+    return ""
+  end
+  local owner = sta.sectorOwner[sectorId]
+  if owner == nil then
+    owner = GetComponentData(sectorId, "owner") or ""
+    sta.sectorOwner[sectorId] = owner
+  end
+  return owner
+end
+
 -- *** counterpart resolution ***
 --
 -- The trade entry names both sides; the counterpart is simply whichever of
@@ -219,15 +253,18 @@ end
 -- name/idcode strings when the component is gone, so a trade with a destroyed
 -- station still reads sensibly.
 local function counterpartInfo(otherId, entryPartnerName, entryPartnerIdcode)
-  local info = { name = "", idcode = "", owner = "", sector = "", luaId = nil }
+  local info = { name = "", idcode = "", owner = "", sector = "", sectorOwner = "", icon = "", luaId = nil }
   if otherId ~= nil and otherId ~= 0 and C.IsComponentOperational(otherId) then
     local luaId = ConvertStringToLuaID(tostring(otherId))
-    local name, idcode, owner, sector = GetComponentData(luaId, "name", "idcode", "owner", "sector")
+    local name, idcode, owner, sector, sectorId, icon =
+        GetComponentData(luaId, "name", "idcode", "owner", "sector", "sectorid", "icon")
     info.luaId  = luaId
     info.name   = name or ""
     info.idcode = idcode or ""
     info.owner  = owner or ""
     info.sector = sector or ""
+    info.icon   = icon or ""
+    info.sectorOwner = sectorOwnerOf(sectorId)
   end
   if info.name == "" then
     info.name   = entryPartnerName or ""
@@ -323,6 +360,8 @@ local function readShipLog(ship, startTime, endTime)
             pName    = displayName(partner.name, partner.idcode),
             pOwner   = partner.owner,
             pSector  = partner.sector,
+            pSecOwner = partner.sectorOwner,
+            pIcon    = partner.icon,
             pLuaId   = partner.luaId,
           }
           ship.tx[#ship.tx + 1] = tx
@@ -395,6 +434,7 @@ function sta.scan()
   sta.totalEntries = 0
   sta.skippedShips = 0
   sta.scanTime = now
+  sta.sectorOwner = {} -- sectors change hands; only cache within a scan
 
   -- Every listable ship is kept, traded or not; the "with transactions" filter is
   -- what decides which of them a view shows, and the parent-station options are

@@ -57,6 +57,12 @@ local config = {
   -- share of a panel that could shrink under it. Unscaled px, run through
   -- Helper.scaleX at use, so the cell takes scaling = false.
   loadValueWidth   = 60,
+  -- Upper bound of each fixed-width column, as the value it is formatted from;
+  -- the width is measured off the formatted string, which is translated.
+  widthSample = {
+    price = 9999999, quantity = 999999, total = 999999999, load = 100,
+    duration = 99 * 86400 + 23 * 3600 + 59 * 60,
+  },
   -- The widget system hands out table rows from a shared pool - its own
   -- config.tableRows.maxRows in widget_fullscreen.lua - and only the rows it
   -- actually draws are taken from it. Past the pool rows are skipped ("No more
@@ -722,6 +728,57 @@ local function rowPitch()
   return height + Helper.borderSize
 end
 
+-- Fixes a column to the widest of the given strings. The padding is the text
+-- cell's own offset on either side; setColWidth only bites before the first row.
+local function setTextColWidth(t, col, ...)
+  local fontsize = Helper.scaleFont(Helper.standardFont, Helper.standardFontSize)
+  local widest   = 0.0
+  for _, text in ipairs({ ... }) do
+    local ok, width = pcall(function()
+      return C.GetTextWidth(text, Helper.standardFont, fontsize)
+    end)
+    if not ok or type(width) ~= "number" then
+      return
+    end
+    widest = math.max(widest, width)
+  end
+  t:setColWidth(col, math.ceil(widest) + 2 * Helper.scaleX(Helper.standardTextOffsetx), false)
+end
+
+-- Widest string a time column can hold, in each of the two shapes.
+local function durationSample()
+  return sta.formatDuration(config.widthSample.duration)
+end
+
+local function agoSample()
+  return sta.formatAgo(0, config.widthSample.duration)
+end
+
+-- Station name and its sector in one cell: only the icon widget takes a second
+-- text. Station and sector are coloured by their own owners, which differ.
+local function createStationCell(cell, info)
+  local iconSize   = Helper.standardTextHeight
+  local ownerColor = sta.factionColor(info.owner)
+
+  local iconId, iconColor = "solid", Color["icon_transparent"]
+  if info.icon ~= nil and info.icon ~= "" then
+    iconId    = info.icon
+    iconColor = ownerColor or Color["icon_normal"]
+  end
+
+  return cell:createIcon(iconId, { width = iconSize, height = iconSize, color = iconColor })
+      :setText(info.name, { halign = "left", x = iconSize + Helper.standardTextOffsetx, color = ownerColor })
+      :setText2(info.sector, { halign = "right", color = sta.factionColor(info.sectorOwner) })
+end
+
+-- Same layout on a transparent icon, so both labels sit over their values.
+local function createStationHeader(cell)
+  local iconSize = Helper.standardTextHeight
+  return cell:createIcon("solid", { width = iconSize, height = iconSize, color = Color["icon_transparent"] })
+      :setText(ReadText(PAGE, 117), { halign = "left", x = iconSize + Helper.standardTextOffsetx })
+      :setText2(ReadText(PAGE, 118), { halign = "right" })
+end
+
 local function pagerHeight()
   return Helper.scaleY(Helper.standardButtonHeight) + Helper.borderSize
 end
@@ -1168,26 +1225,35 @@ function menu.createTransactionsPanel(x, width)
     return emptyPanel(x, width, 1016)
   end
 
-  local t = menu.infoFrame:addTable(10, {
+  -- Station and sector share one column, the way an expanded trade shows them.
+  local t = menu.infoFrame:addTable(9, {
     tabOrder = 2, width = width, x = x, y = Helper.frameBorder, borderEnabled = true,
     maxVisibleHeight = scrollHeight(Helper.frameBorder, detailBottom()),
     backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
   })
 
+  -- Bounded columns fixed, remainder to Ware and the station cell.
+  setTextColWidth(t, 1, ReadText(PAGE, 110), agoSample())
+  setTextColWidth(t, 2, ReadText(PAGE, 111), ReadText(PAGE, 1018), ReadText(PAGE, 1019))
+  setTextColWidth(t, 5, ReadText(PAGE, 113), sta.formatMoney(config.widthSample.price))
+  setTextColWidth(t, 6, ReadText(PAGE, 114), tostring(config.widthSample.quantity))
+  setTextColWidth(t, 7, ReadText(PAGE, 115), sta.formatMoney(config.widthSample.total))
+  setTextColWidth(t, 8, ReadText(PAGE, 116), sta.formatMoney(config.widthSample.total))
+  setTextColWidth(t, 9, ReadText(PAGE, 119), string.format("%.0f%%", config.widthSample.load))
+
   local row = t:addRow(false, { fixed = true, bgColor = Color["row_title_background"] })
-  row[1]:setColSpan(10):createText(ship.fullName, Helper.titleTextProperties)
+  row[1]:setColSpan(9):createText(ship.fullName, Helper.titleTextProperties)
 
   row = t:addRow(false, { fixed = true, bgColor = Color["row_background_unselectable"] })
-  row[1]:createText(ReadText(PAGE, 110), { halign = "left" })
-  row[2]:createText(ReadText(PAGE, 111), { halign = "left" })
+  row[1]:createText(ReadText(PAGE, 110), { halign = "right" })
+  row[2]:createText(ReadText(PAGE, 111), { halign = "center" })
   row[3]:createText(ReadText(PAGE, 112), { halign = "left" })
-  row[4]:createText(ReadText(PAGE, 117), { halign = "left" })
-  row[5]:createText(ReadText(PAGE, 118), { halign = "left" })
-  row[6]:createText(ReadText(PAGE, 113), { halign = "right" })
-  row[7]:createText(ReadText(PAGE, 114), { halign = "right" })
-  row[8]:createText(ReadText(PAGE, 115), { halign = "right" })
-  row[9]:createText(ReadText(PAGE, 116), { halign = "right" })
-  row[10]:createText(ReadText(PAGE, 119), { halign = "right" })
+  createStationHeader(row[4])
+  row[5]:createText(ReadText(PAGE, 113), { halign = "right" })
+  row[6]:createText(ReadText(PAGE, 114), { halign = "right" })
+  row[7]:createText(ReadText(PAGE, 115), { halign = "right" })
+  row[8]:createText(ReadText(PAGE, 116), { halign = "right" })
+  row[9]:createText(ReadText(PAGE, 119), { halign = "right" })
 
   -- Measured, not derived: the title row uses titleTextProperties and is taller
   -- than the header row below it.
@@ -1198,19 +1264,21 @@ function menu.createTransactionsPanel(x, width)
   for j = first, last do
     local tx = transactions[#transactions - j + 1]
     row = t:addRow(true, {})
-    row[1]:createText(sta.formatAgo(tx.t), { halign = "left" })
+    row[1]:createText(sta.formatAgo(tx.t), { halign = "right" })
     row[2]:createText(ReadText(PAGE, tx.sale and 1019 or 1018),
-      { halign = "left", color = tx.sale and Color["text_positive"] or Color["text_negative"] })
+      { halign = "center", color = tx.sale and Color["text_positive"] or Color["text_negative"] })
     row[3]:createText(sta.getWare(tx.ware).name, { halign = "left" })
-    row[4]:createText(tx.pName, { halign = "left" })
-    row[5]:createText(tx.pSector, { halign = "left" })
-    row[6]:createText(sta.formatMoney(tx.price), { halign = "right" })
-    row[7]:createText(tostring(tx.vol), { halign = "right" })
-    row[8]:createText(sta.formatMoney(tx.sale and tx.sum or -tx.sum),
+    createStationCell(row[4], {
+      name = tx.pName, sector = tx.pSector, owner = tx.pOwner,
+      sectorOwner = tx.pSecOwner, icon = tx.pIcon,
+    })
+    row[5]:createText(sta.formatMoney(tx.price), { halign = "right" })
+    row[6]:createText(tostring(tx.vol), { halign = "right" })
+    row[7]:createText(sta.formatMoney(tx.sale and tx.sum or -tx.sum),
       { halign = "right", color = tx.sale and Color["text_positive"] or Color["text_negative"] })
-    row[9]:createText(sta.formatMoney(tx.profit),
+    row[8]:createText(sta.formatMoney(tx.profit),
       { halign = "right", color = (tx.profit >= 0) and Color["text_positive"] or Color["text_negative"] })
-    row[10]:createText(string.format("%.0f%%", tx.load), { halign = "right" })
+    row[9]:createText(string.format("%.0f%%", tx.load), { halign = "right" })
   end
 
   createPager(x, width, panelBottom(), 3)
@@ -1238,11 +1306,22 @@ function menu.createTradesPanel(x, width)
   -- against. Widths must precede the first addRow.
   t:setColWidth(1, Helper.scaleY(Helper.standardTextHeight) + Helper.standardContainerOffset, false)
 
+  -- Columns 4-6 also carry a leg row's operation, volume and price, so each is
+  -- measured over both.
+  setTextColWidth(t, 2, ReadText(PAGE, 110), agoSample())
+  setTextColWidth(t, 4, ReadText(PAGE, 130), sta.formatMoney(config.widthSample.total),
+    ReadText(PAGE, 1018), ReadText(PAGE, 1019))
+  setTextColWidth(t, 5, ReadText(PAGE, 131), sta.formatMoney(config.widthSample.total),
+    tostring(config.widthSample.quantity))
+  setTextColWidth(t, 6, ReadText(PAGE, 132), sta.formatMoney(config.widthSample.total))
+  setTextColWidth(t, 7, ReadText(PAGE, 133), durationSample())
+  setTextColWidth(t, 8, ReadText(PAGE, 119), string.format("%.0f%%", config.widthSample.load))
+
   local row = t:addRow(false, { fixed = true, bgColor = Color["row_title_background"] })
   row[1]:setColSpan(8):createText(ship.fullName, Helper.titleTextProperties)
 
   row = t:addRow(false, { fixed = true, bgColor = Color["row_background_unselectable"] })
-  row[2]:createText(ReadText(PAGE, 110), { halign = "left" })
+  row[2]:createText(ReadText(PAGE, 110), { halign = "right" })
   row[3]:createText(ReadText(PAGE, 112), { halign = "left" })
   row[4]:createText(ReadText(PAGE, 130), { halign = "right" })
   row[5]:createText(ReadText(PAGE, 131), { halign = "right" })
@@ -1263,7 +1342,7 @@ function menu.createTradesPanel(x, width)
     row = t:addRow("trade_" .. key, {})
     row[1]:createButton({ height = Helper.standardTextHeight }):setText(menu.expanded[key] and "-" or "+", { halign = "center" })
     row[1].handlers.onClick = function() return menu.toggleExpanded(key) end
-    row[2]:createText(sta.formatAgo(trade.startTime), { halign = "left" })
+    row[2]:createText(sta.formatAgo(trade.startTime), { halign = "right" })
     row[3]:createText(sta.getWare(trade.ware).name, { halign = "left" })
     row[4]:createText(sta.formatMoney(trade.buyCost), { halign = "right" })
     row[5]:createText(sta.formatMoney(trade.revenue), { halign = "right" })
@@ -1273,15 +1352,19 @@ function menu.createTradesPanel(x, width)
     row[8]:createText(string.format("%.0f%%", trade.load), { halign = "right" })
 
     if menu.expanded[key] then
+      -- A leg lines up under the trade row: station in the ware column, then
+      -- operation / volume / price under the three sums.
       local function legRow(leg, isSale)
         local legrow = t:addRow(false, { bgColor = Color["row_background_unselectable"] })
-        legrow[2]:createText(sta.formatAgo(leg.t), { halign = "left" })
-        legrow[3]:createText(ReadText(PAGE, isSale and 1019 or 1018),
-          { halign = "left", color = isSale and Color["text_positive"] or Color["text_negative"] })
-        legrow[4]:setColSpan(2):createText(leg.station, { halign = "left" })
-        legrow[6]:createText(leg.sector, { halign = "left" })
-        legrow[7]:createText(sta.formatMoney(leg.price), { halign = "right" })
-        legrow[8]:createText(tostring(leg.vol), { halign = "right" })
+        legrow[2]:createText(sta.formatAgo(leg.t), { halign = "right" })
+        createStationCell(legrow[3], {
+          name = leg.station, sector = leg.sector, owner = leg.owner,
+          sectorOwner = leg.sectorOwner, icon = leg.icon,
+        })
+        legrow[4]:createText(ReadText(PAGE, isSale and 1019 or 1018),
+          { halign = "center", color = isSale and Color["text_positive"] or Color["text_negative"] })
+        legrow[5]:createText(tostring(leg.vol), { halign = "right" })
+        legrow[6]:createText(sta.formatMoney(leg.price), { halign = "right" })
       end
       for _, leg in ipairs(trade.purchases) do legRow(leg, false) end
       for _, leg in ipairs(trade.sales) do legRow(leg, true) end

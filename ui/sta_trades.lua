@@ -19,9 +19,11 @@ local function makeLeg(tx, volume)
     t       = tx.t,
     vol     = volume,
     price   = tx.price,
-    station = tx.pName,
-    sector  = tx.pSector,
-    owner   = tx.pOwner,
+    station    = tx.pName,
+    sector     = tx.pSector,
+    sectorOwner = tx.pSecOwner,
+    owner      = tx.pOwner,
+    icon       = tx.pIcon,
   }
 end
 
