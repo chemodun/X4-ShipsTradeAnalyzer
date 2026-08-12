@@ -44,6 +44,9 @@ local sta = {
   -- The engine logs no trade between a player station and a player ship; off shows
   -- the log raw, on reconstructs the missing half.
   injectInternal = true,
+  -- Two same-way trades of one ware further apart than this are separate trips;
+  -- the Options value in seconds, resolved once per scan.
+  multiHopSeconds = 600,
 }
 
 local config = {
@@ -55,8 +58,8 @@ local config = {
   wareColumnTransports = { container = true, solid = true, liquid = true, gas = true },
   -- Fallback for a missing Options key; 0 means rescan on every menu open.
   rescanIntervalMinutes = 1,
-  -- Two same-way trades of one ware further apart than this are separate trips.
-  multiHopSeconds = 600,
+  -- Fallback for a missing Options key, in minutes.
+  internalSeparationMinutes = 10,
 }
 
 -- *** debug helpers ***
@@ -94,6 +97,13 @@ end
 
 function sta.getConfig()
   return GetNPCBlackboard(sta.playerId, "$ShipsTradeAnalyzerConfig") or {}
+end
+
+-- The Options separation period in seconds; stored in minutes like the slider shows it.
+local function separationSeconds(cfg)
+  local minutes = tonumber((cfg or sta.getConfig()).timePeriodForInternalTradesSeparation)
+      or config.internalSeparationMinutes
+  return minutes * 60
 end
 
 -- *** formatting (local: both vanilla equivalents are 9.00-only) ***
@@ -523,7 +533,7 @@ local function shortfall(ship, entries, index, wareId, ware, held)
   for i = index, #entries do
     local tx = entries[i]
     if tx.ware == wareId then
-      if not tx.sale or (last ~= nil and tx.t - last > config.multiHopSeconds) then
+      if not tx.sale or (last ~= nil and tx.t - last > sta.multiHopSeconds) then
         break
       end
       wanted, last = wanted + tx.vol, tx.t
@@ -555,7 +565,7 @@ local function injectForShip(ship)
       local maxUnits = unitCapacity(ship, ware)
       local since = lastBuy[tx.ware]
       if (maxUnits > 0 and held + tx.vol > maxUnits)
-          or (since ~= nil and tx.t - since > config.multiHopSeconds) then
+          or (since ~= nil and tx.t - since > sta.multiHopSeconds) then
         isSale, volume = true, held
       end
     end
@@ -666,6 +676,7 @@ function sta.scan()
   sta.injectedEntries = 0
   sta.scanTime = now
   sta.scanCount = sta.scanCount + 1
+  sta.multiHopSeconds = separationSeconds()
   sta.sectorOwner = {} -- sectors change hands; only cache within a scan
   sta.sectorMacro = {} -- a macro never changes, but the ids keying it go stale
   sta.stationInfo = {} -- a station moves sector and reprices between scans
@@ -706,8 +717,11 @@ end
 -- Scans when there is no snapshot or it aged past the configured interval. True
 -- when one ran: anything the caller keyed on the previous snapshot is stale.
 function sta.ensureScanned()
-  if sta.scanned then
-    local minutes = tonumber(sta.getConfig().rescanIntervalMinutes)
+  local cfg = sta.getConfig()
+  -- The separation period shapes the injected legs, so a change to it invalidates
+  -- the snapshot however young it is.
+  if sta.scanned and separationSeconds(cfg) == sta.multiHopSeconds then
+    local minutes = tonumber(cfg.rescanIntervalMinutes)
         or config.rescanIntervalMinutes
     if C.GetCurrentGameTime() - sta.scanTime < minutes * 60 then
       return false

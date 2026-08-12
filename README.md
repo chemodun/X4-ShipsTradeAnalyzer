@@ -59,6 +59,7 @@ The data is read when the menu opens, and read again on a later open once the la
 Found under Extension Options.
 
 - **Data Refresh Interval** - how old the last reading may be before opening the menu takes a new one, 0 to 10 in-game minutes. At 0 every open re-reads the trade log; at 10 a reading is kept for ten minutes and only **Refresh** replaces it sooner.
+- **Internal Trades Separation** - used by **Inject Internal**: two trades of the same ware in the same direction further apart than this came from separate visits to the home station, 5 to 30 in-game minutes. Lower it for short local runs, raise it for long hauls. Changing it re-reads the trade log on the next menu open.
 - **Debug Level** - None, Debug or Trace. Leave at None unless you are reporting a problem.
 
 ## Credits

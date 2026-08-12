@@ -8,6 +8,9 @@
     Config keys under player.entity.$ShipsTradeAnalyzerConfig:
       $rescanIntervalMinutes  - int 0-10: how stale a scan may be before an open
                                 re-reads the log; 0 = always
+      $timePeriodForInternalTradesSeparation
+                              - int 5-30 minutes: two same-way trades of one ware
+                                further apart than this are separate trips home
       $debugLevel             - 'none' | 'debug' | 'trace'
 
     No collection timer and no stored trade data: the trade log is the engine's own,
@@ -26,6 +29,7 @@
           <actions>
             <set_value name="$cfg" exact="table[
               $rescanIntervalMinutes = 1,
+              $timePeriodForInternalTradesSeparation = 10,
               $debugLevel            = 'none',
             ]" />
           </actions>
@@ -93,7 +97,7 @@
         </cue>
 
         <!-- =============== Options menu registration =============== -->
-        <cue name="STA_Register_Menu" instantiate="true" version="4">
+        <cue name="STA_Register_Menu" instantiate="true" version="5">
           <conditions>
             <event_cue_signalled cue="md.Simple_Menu_API.Reloaded" />
           </conditions>
@@ -123,7 +127,7 @@
         </cue>
 
         <!-- =============== Options menu open callback =============== -->
-        <cue name="STA_Options_Menu" instantiate="true" version="4">
+        <cue name="STA_Options_Menu" instantiate="true" version="5">
           <conditions>
             <event_cue_signalled />
           </conditions>
@@ -144,6 +148,20 @@
                 <param name="max" value="10" />
                 <param name="step" value="1" />
                 <param name="text" value="{1972092439, 90101}" />
+                <param name="suffix" value="' %s'.[{1001, 103}]" />
+                <param name="colSpan" value="6" />
+                <param name="textColSpan" value="6" />
+                <param name="data" value="$cfg" />
+                <param name="handle" value="STA_HandleSlider" />
+              </run_actions>
+
+              <!-- Only reached with Inject Internal on; the scan applies it. -->
+              <run_actions ref="md.Options_Helper.Add_Slider">
+                <param name="id" value="'timePeriodForInternalTradesSeparation'" />
+                <param name="min" value="5" />
+                <param name="max" value="30" />
+                <param name="step" value="1" />
+                <param name="text" value="{1972092439, 90102}" />
                 <param name="suffix" value="' %s'.[{1001, 103}]" />
                 <param name="colSpan" value="6" />
                 <param name="textColSpan" value="6" />
