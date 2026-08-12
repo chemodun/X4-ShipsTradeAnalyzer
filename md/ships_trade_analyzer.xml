@@ -234,7 +234,7 @@
         <!-- =============== Interaction menu entry ===============
              Re-registered on every interact menu open, per Interact_Menu_API. A
              station opens filtered to its subordinates, a ship preselected. -->
-        <cue name="STA_Add_Interact_Action" instantiate="true" version="1">
+        <cue name="STA_Add_Interact_Action" instantiate="true" version="2">
           <conditions>
             <event_cue_signalled cue="md.Interact_Menu_API.Get_Actions" />
           </conditions>
@@ -242,7 +242,9 @@
             <include_actions ref="STA_ReadDebugChances" />
             <set_value name="$target" exact="event.param.$object" />
             <do_if value="$target != null and $target.trueowner == faction.player
-              and ($target.isclass.{class.ship} or $target.isclass.{class.station})">
+              and $target.isclass.{class.ship} and not $target.isclass.spacesuit
+               and not $target.isclass.ship_xs and not $target.islasertower
+              and not $target.isunit and not $target.isdeployable and not $target.iswreck">
               <debug_text text="'[STA]: STA_Add_Interact_Action adding action for %s.'.[$target.debugname]"
                 chance="$traceChance" filter="scripts" />
               <signal_cue_instantly cue="md.Interact_Menu_API.Add_Action"
