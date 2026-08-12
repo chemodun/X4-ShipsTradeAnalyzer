@@ -31,6 +31,7 @@ local sta = {
   ships       = {},  -- array of ship records, see buildShip()
   wareCache   = {},  -- [wareId] = { name, transport, volume, avgprice }
   sectorOwner = {},  -- [sectorid] = owner faction id, "" when unowned
+  widestWareName = "", -- measured once at init, "" if the ware list was unreadable
 
   scanTime      = 0, -- game time the last scan ran at
   scanned       = false,
@@ -46,6 +47,9 @@ local config = {
   -- Wares the engine reports without a usable per-unit volume against ship
   -- capacity; their load percentage is meaningless, so it reads as full.
   fullLoadWares = { rawscrap = true },
+  -- Transports a ship can actually carry, and so the only names the Ware column
+  -- has to fit.
+  wareColumnTransports = { container = true, solid = true, liquid = true, gas = true },
 }
 
 -- *** debug helpers ***
@@ -694,6 +698,32 @@ end
 
 -- *** init ***
 
+-- Widest tradeable ware name, measured once at init: the Ware column has to fit
+-- anything that can turn up in a log, not just what this save has traded so far.
+-- Borrowed declarations again - GetNumWares/GetWares come from vanilla's menus.
+local function findWidestWareName()
+  local widest, widestWidth = "", 0
+  local ok = pcall(function()
+    local n = C.GetNumWares("economy", false, "", "")
+    local buf = ffi.new("const char*[?]", n)
+    n = C.GetWares(buf, n, "economy", false, "", "")
+    local fontsize = Helper.scaleFont(Helper.standardFont, Helper.standardFontSize)
+    for i = 0, n - 1 do
+      local ware = sta.getWare(ffi.string(buf[i]))
+      if config.wareColumnTransports[ware.transport] then
+        local width = C.GetTextWidth(ware.name, Helper.standardFont, fontsize)
+        if width > widestWidth then
+          widest, widestWidth = ware.name, width
+        end
+      end
+    end
+  end)
+  if not ok then
+    return ""
+  end
+  return widest
+end
+
 function sta.init()
   sta.playerId = ConvertStringTo64Bit(tostring(C.GetPlayerID()))
   sta.onDebugLevelChanged()
@@ -711,9 +741,11 @@ function sta.init()
     DebugError("[STA] init: trade-log API not found; the analyzer will show no data.")
   end
 
+  sta.widestWareName = findWidestWareName()
+
   RegisterEvent("ShipsTradeAnalyzer.DebugLevelChanged", sta.onDebugLevelChanged)
-  debugLog("init: playerId=%s debugLevel=%s available=%s.",
-    tostring(sta.playerId), sta.debugLevel, tostring(sta.available))
+  debugLog("init: playerId=%s debugLevel=%s available=%s widestWare=%q.",
+    tostring(sta.playerId), sta.debugLevel, tostring(sta.available), sta.widestWareName)
 end
 
 Register_Require_With_Init("extensions.ships_trade_analyzer.ui.sta_data", sta, sta.init)

@@ -1232,9 +1232,12 @@ function menu.createTransactionsPanel(x, width)
     backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
   })
 
-  -- Bounded columns fixed, remainder to Ware and the station cell.
+  -- Bounded columns fixed, remainder to the station cell.
   setTextColWidth(t, 1, ReadText(PAGE, 110), agoSample())
   setTextColWidth(t, 2, ReadText(PAGE, 111), ReadText(PAGE, 1018), ReadText(PAGE, 1019))
+  if sta.widestWareName ~= "" then
+    setTextColWidth(t, 3, ReadText(PAGE, 112), sta.widestWareName)
+  end
   setTextColWidth(t, 5, ReadText(PAGE, 113), sta.formatMoney(config.widthSample.price))
   setTextColWidth(t, 6, ReadText(PAGE, 114), tostring(config.widthSample.quantity))
   setTextColWidth(t, 7, ReadText(PAGE, 115), sta.formatMoney(config.widthSample.total))
