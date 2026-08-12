@@ -1,0 +1,128 @@
+[h1]Ships Trade Analyzer[/h1]
+
+Brings the analysis of [url=https://www.nexusmods.com/x4foundations/mods/1801]X4 Player Ship Trade Analyzer[/url] into the game itself. No save file, no external tool, no game folder to point at: the mod reads the trade log the game already keeps for your ships and shows you who is earning, on what, and how well loaded they ran.
+
+[h2][b]Features[/b][/h2]
+[list]
+[*] [b]Two analysis modes[/b]:
+[list]
+[*] [b]By Transactions[/b] - every buy and sell is counted on its own. Faster and shows more, but profit is estimated against the ware's average price.
+[*] [b]By Trades[/b] - buys are matched against the sells that emptied the hold again, so profit is real. Shows fewer rows, since a ship still carrying cargo has no completed trade yet.
+[/list]
+[*] [b]Five views[/b], both modes:
+[list]
+[*] [b]Details[/b] - the full table for the selected ship, newest first.
+[*] [b]Profit over Time[/b] - cumulative profit per ship as a line graph, up to 8 ships at once.
+[*] [b]Ships by Wares[/b] - ranked bars, one per ship, split by the wares it traded.
+[*] [b]Wares by Ships[/b] - the same, transposed: one bar per ware, split by the ships that carried it.
+[*] [b]Cargo Load[/b] - how full each ship actually ran, average and best.
+[/list]
+[*] [b]Inject Internal[/b] \(on by default\) - an artificial try to avoid game engine limitations.
+[*] [b]Filters[/b] applying to every view, by assigned station, by ship size, by cargo type, etc.
+[*] [b]Sorting[/b] of the ship list by name or by estimated profit, with the filtered total shown above it.
+[*] [b]Reverse order[/b] on the ranked views, to look at the bottom of the ranking instead of the top.
+[/list]
+[h2][b]Requirements[/b][/h2]
+[list]
+[*] [b]X4: Foundations[/b] 8.00 and 9.00.
+[*] [b]Mod Support APIs[/b] by [url=https://next.nexusmods.com/profile/sirnukes?gameId=2659]SirNukes[/url] to be installed and enabled. Version [b]1.95[/b] and upper is required.
+[list]
+[*] It is available via Steam - [url=https://steamcommunity.com/sharedfiles/filedetails/?id=2042901274]SirNukes Mod Support APIs[/url]
+[*] Or via the Nexus Mods - [url=https://www.nexusmods.com/x4foundations/mods/503]Mod Support APIs[/url]
+[/list]
+[*] `Options Helper`, to provide the in-game Debug Level option. Version [b]1.10[/b] and upper is required.
+[list]
+[*] It is available via Steam - [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3715253556]Options Helper[/url]
+[*] Or via the Nexus Mods - [url=https://www.nexusmods.com/x4foundations/mods/2089]Options Helper[/url]
+[/list]
+[*] `Print Extension List`, to record the game version and the enabled extensions in the log. Version [b]1.01[/b] and upper is required.
+[list]
+[*] It is available via Steam - [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3770927339]Print Extension List[/url]
+[*] Or via the Nexus Mods - [url=https://www.nexusmods.com/x4foundations/mods/2191]Print Extension List[/url]
+[/list]
+[/list]
+[h2][b]Notes and limitations[/b][/h2]
+[list]
+[*] The game engine does not provide data for trading between players' ships and player stations, despite the fact that information is stored in the game memory and later in the save file. This mod cannot show those trades, and they are not counted in the profit totals.
+[*] Ships that have been destroyed or sold no longer appear.
+[*] Profit in By Transactions mode is an estimate. For container wares it compares against the ware's average price; for mined solids, liquids and gases there is no purchase to compare against, so the whole sale counts as profit.
+[/list]
+[h2][b]Installation[/b][/h2]
+[list]
+[*] [b]Steam Workshop[/b]: [url=https://steamcommunity.com/sharedfiles/filedetails/?id=0]Ships Trade Analyzer[/url].
+[*] [b]Nexus Mods[/b]: [url=https://www.nexusmods.com/x4foundations/mods/]Ships Trade Analyzer[/url]
+[/list]
+[h2][b]Usage[/b][/h2]
+
+Right-click any player-owned ship and pick [b]Trade Analyzer[/b].
+
+[img]https://raw.githubusercontent.com/chemodun/X4-ShipsTradeAnalyzer/refs/heads/main/docs/images/context_menu.png[/img]
+
+Opening will preselects that ship, if ship has transactions in the log. Otherwise, the first ship in the list is selected.
+A ship is picked by making its row the current one in the list on the left, exactly like the object list on the map.
+[list]
+[*] Default view is [b]Details[/b] in [b]Transactions[/b] mode, showing the selected ship's trades in a table.
+[/list]  [img]https://raw.githubusercontent.com/chemodun/X4-ShipsTradeAnalyzer/refs/heads/main/docs/images/details_mode_transactions.png[/img]
+[list]
+[*] There is an example of the same details in [b]Trades[/b] mode (available not for all ships)
+[/list]  [img]https://raw.githubusercontent.com/chemodun/X4-ShipsTradeAnalyzer/refs/heads/main/docs/images/details_mode_trades.png[/img]
+[list]
+[*] [b]Profit over Time[/b] draws several ships at once, so there the list works like the map's as well: ctrl-click adds or removes a ship, shift-click takes a range, and a plain click goes back to a single one.
+[/list]
+  [img]https://raw.githubusercontent.com/chemodun/X4-ShipsTradeAnalyzer/refs/heads/main/docs/images/profit_over_time.png[/img]
+
+  Up to 8 lines are drawn - picking a ninth ship drops the one picked first.
+
+  [img]https://raw.githubusercontent.com/chemodun/X4-ShipsTradeAnalyzer/refs/heads/main/docs/images/profit_over_time_8.png[/img]
+[list]
+[*] [b]Ships by Wares[/b] - displays a ranked bar chart, one bar per ship, split by the wares it traded. The total profit is shown above the list.
+[/list]
+  [img]https://raw.githubusercontent.com/chemodun/X4-ShipsTradeAnalyzer/refs/heads/main/docs/images/ships_by_wares.png[/img]
+
+  You can change a bar details but take in account that the higher details will decrease count of possible lines in chart per page due to game engine limitations.
+
+  [img]https://raw.githubusercontent.com/chemodun/X4-ShipsTradeAnalyzer/refs/heads/main/docs/images/ships_by_wares_max_details.png[/img]
+[list]
+[*] [b]Wares by Ships[/b] - the same, transposed: one bar per ware, split by the ships that carried it.
+[/list]
+  [img]https://raw.githubusercontent.com/chemodun/X4-ShipsTradeAnalyzer/refs/heads/main/docs/images/wares_by_ships_max_details.png[/img]
+[list]
+[*] [b]Cargo Load[/b] - how full each ship actually ran, average and best.
+[/list]
+  [img]https://raw.githubusercontent.com/chemodun/X4-ShipsTradeAnalyzer/refs/heads/main/docs/images/cargo_load.png[/img]
+
+  And you can use the reverse order to look at the bottom of the ranking instead of the top.
+
+  [img]https://raw.githubusercontent.com/chemodun/X4-ShipsTradeAnalyzer/refs/heads/main/docs/images/cargo_load_reverse.png[/img]
+
+The data is read when the menu opens, and read again on a later open once the last reading is older than the [b]Data Refresh Interval[/b] - one in-game minute by default. Press [b]Refresh[/b] to read it again at any time.
+
+[h2][b]Settings[/b][/h2]
+
+Found under Extension Options.
+
+[img]https://raw.githubusercontent.com/chemodun/X4-ShipsTradeAnalyzer/refs/heads/main/docs/images/options.png[/img]
+[list]
+[*] [b]Data Refresh Interval[/b] - how old the last reading may be before opening the menu takes a new one, 0 to 10 in-game minutes. At 0 every open re-reads the trade log; at 10 a reading is kept for ten minutes and only [b]Refresh[/b] replaces it sooner.
+[*] [b]Internal Trades Separation[/b] - used by [b]Inject Internal[/b]: two trades of the same ware in the same direction further apart than this came from separate visits to the home station, 5 to 30 in-game minutes. Lower it for short local runs, raise it for long hauls. Changing it re-reads the trade log on the next menu open.
+[*] [b]Debug Level[/b] - None, Debug or Trace. Leave at None unless you are reporting a problem.
+[/list]
+[h2][b]Credits[/b][/h2]
+[list]
+[*] Author: Chem O`Dun, on [url=https://next.nexusmods.com/profile/ChemODun/mods?gameId=2659]Nexus Mods[/url] and [url=https://steamcommunity.com/id/chemodun/myworkshopfiles/?appid=392160]Steam Workshop[/url]
+[*] [i]"X4: Foundations"[/i] is a trademark of [url=https://www.egosoft.com]Egosoft[/url].
+[/list]
+[h2][b]Acknowledgements[/b][/h2]
+[list]
+[*] [url=https://www.egosoft.com]EGOSOFT[/url] — for the X series.
+[*] [url=https://next.nexusmods.com/profile/sirnukes?gameId=2659]SirNukes[/url] — for the Mod Support APIs that power the UI hooks.
+[/list]
+[h2][b]Changelog[/b][/h2]
+
+[h2][1.00] - 2026-08-12[/h2]
+[list]
+[*] [b]Added[/b]
+[list]
+[*] Initial release.
+[/list]
+[/list]
