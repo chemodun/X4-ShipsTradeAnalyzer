@@ -49,7 +49,6 @@
             <t id="1003">Station de rattachement</t>
             <t id="1004">Classe de vaisseau</t>
             <t id="1005">Type de cargaison</t>
-            <t id="1006">Échanges internes</t>
             <t id="1007">Trier par</t>
             <t id="1008">Nom</t>
             <t id="1009">Bénéfice</t>
@@ -77,7 +76,6 @@
 
             <!-- Options page -->
             <t id="90101">Intervalle d'actualisation des données</t>
-            <t id="90102">Inclure les échanges internes par défaut</t>
 
             <!-- Section: Debug (90900) -->
             <t id="90900">Débogage</t>

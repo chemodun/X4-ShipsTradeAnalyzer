@@ -499,13 +499,11 @@ end
 -- *** filtering ***
 
 function sta.defaultFilter()
-  local cfg = sta.getConfig()
   return {
     withTransactions = true,
     parentStation  = "any",   -- "any" | "none" | <station id as a string>
     shipClass      = "all",   -- "all" | ship_xl | ship_l | ship_m | ship_s
     cargoType      = "all",   -- "all" | container | solid | liquid | gas
-    internalTrades = not (cfg.includeInternalTrades == false or cfg.includeInternalTrades == 0),
   }
 end
 
@@ -560,9 +558,6 @@ end
 
 function sta.txMatches(tx, filter)
   if filter.cargoType ~= "all" and sta.getWare(tx.ware).transport ~= filter.cargoType then
-    return false
-  end
-  if not filter.internalTrades and tx.pOwner == "player" then
     return false
   end
   return true

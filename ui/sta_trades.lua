@@ -51,15 +51,6 @@ local function chainJumps(purchases, sales)
   return previous ~= nil and total or nil
 end
 
-local function allPlayerOwned(legs)
-  for _, leg in ipairs(legs) do
-    if leg.owner ~= "player" then
-      return false
-    end
-  end
-  return #legs > 0
-end
-
 local function buildForShip(ship)
   local trades = {}
 
@@ -114,7 +105,6 @@ local function buildForShip(ship)
         trade.profit    = trade.revenue - trade.buyCost
         trade.duration  = math.max(0, trade.endTime - trade.startTime)
         trade.load      = (maxQuantity > 0) and math.min(100, trade.bought / maxQuantity * 100) or 100
-        trade.internal  = allPlayerOwned(purchases) and allPlayerOwned(sales)
         trades[#trades + 1] = trade
       end
     end
@@ -193,14 +183,7 @@ end
 function staTrades.filteredTrades(ship, filter)
   local result = {}
   for _, trade in ipairs(staTrades.getTrades(ship)) do
-    local passes = true
-    if not filter.internalTrades and trade.internal then
-      passes = false
-    end
-    if passes and filter.cargoType ~= "all" and sta.getWare(trade.ware).transport ~= filter.cargoType then
-      passes = false
-    end
-    if passes then
+    if filter.cargoType == "all" or sta.getWare(trade.ware).transport == filter.cargoType then
       result[#result + 1] = trade
     end
   end

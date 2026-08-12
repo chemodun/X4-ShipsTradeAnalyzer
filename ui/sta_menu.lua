@@ -31,20 +31,17 @@ local menu = {
 local config = {
   infoLayer        = 4,
   -- Share of the map's own left info panel width, and vanilla's floor for it.
-  leftPanelShare   = 0.8,
+  leftPanelShare   = 1,
   mapInfoMinWidth  = 400,
   -- A table caps at 13 columns, so a bar spans barTables of them side by side.
   -- Each one costs a row of the frame's pool per item: the Bar Detail trade.
   maxTableCols     = 13,
   barTables        = 2,
   barTablesMax     = 6,
-  -- Name column of the bar views and Cargo Load: a share of the left panel, not of
-  -- the panel it sits in, so both read the same whatever is next to them.
-  nameColShare     = 0.8,
-  sumColShare      = 0.3,
-  -- Fixed width a value is known to fit, not a share of a panel that could shrink.
-  -- Unscaled px, run through Helper.scaleX at use, so the cell takes scaling = false.
-  loadValueWidth   = 60,
+  -- Label and Total column of the bar views.
+  labelAndTotalColShare     = 0.8,
+  -- Label column of the Cargo Load view.
+  nameColShare     = 0.6,
   -- Upper bound of each fixed-width column, measured off the formatted string.
   widthSample = {
     price = 9999999, quantity = 999999, total = 999999999, load = 100,
@@ -194,8 +191,7 @@ end
 local function shipRows()
   local f = menu.filter
   local key = table.concat({ menu.mode, menu.sortBy, f.parentStation, f.shipClass,
-    f.cargoType, tostring(f.internalTrades), tostring(f.withTransactions),
-    tostring(sta.scanTime) }, "|")
+    f.cargoType, tostring(f.withTransactions), tostring(sta.scanTime) }, "|")
   if menu.shipRowsKey ~= key then
     if menu.mode == "trades" then
       menu.shipRowsCache = staTrades.filteredShips(f, menu.sortBy)
@@ -487,11 +483,6 @@ end
 
 function menu.selectSort(_, id)
   menu.sortBy = id
-  refreshFromFirstPage()
-end
-
-function menu.toggleInternal(checked)
-  menu.filter.internalTrades = checked
   refreshFromFirstPage()
 end
 
@@ -1007,11 +998,6 @@ function menu.createLeftPanel(x, width)
   row[2].handlers.onDropDownConfirmed = menu.selectCargoType
 
   row = leftTable:addRow(true, { fixed = true })
-  row[1]:createText(ReadText(PAGE, 1006), { halign = "left" })
-  createCenteredCheckBox(row[2]:setColSpan(3), menu.filter.internalTrades)
-  row[2].handlers.onClick = function(_, checked) return menu.toggleInternal(checked) end
-
-  row = leftTable:addRow(true, { fixed = true })
   row[1]:createText(ReadText(PAGE, 1007), { halign = "left" })
   local sortEntries = {
     { id = "profit", text = ReadText(PAGE, 1009) },
@@ -1443,16 +1429,12 @@ function menu.createRankedPanel(x, width, groupBy)
   local numBars   = math.max(1, menu.barTables or config.barTables)
   local cols      = config.maxTableCols
   local segments  = numBars * cols
-  local labelWidth = math.floor(menu.leftPanelWidth * config.nameColShare)
-  local totalWidth = math.floor(menu.leftPanelWidth * config.sumColShare)
+  local labelsAndTotalsWidth = menu.leftPanelWidth * config.labelAndTotalColShare
   -- Inner borders of the bar tables, the label table's own, and a gap per bar table.
   local borders   = (numBars * (cols - 1) + numBars + 1) * Helper.borderSize
-  local segWidth  = math.max(1, math.floor((width - labelWidth - totalWidth - borders) / segments))
+  local segWidth  = math.max(1, math.floor((width - labelsAndTotalsWidth - borders) / segments))
   -- The total column takes what the segments' flooring left, so the panel ends flush.
-  local restWidth = math.floor(width - labelWidth - borders - segments * segWidth)
-  if restWidth > totalWidth then
-    totalWidth = restWidth
-  end
+  labelsAndTotalsWidth = math.floor(width - borders - segments * segWidth)
 
   local bottom = contentBottom(#legendEntries)
 
@@ -1482,9 +1464,8 @@ function menu.createRankedPanel(x, width, groupBy)
 
   -- Name and total are built first: the frame hands out rows in creation order, so
   -- what the player reads is the last thing an exhausted pool takes away.
-  local labelTable = addDataTable(2, labelWidth + totalWidth + Helper.borderSize, x, 3)
-  labelTable:setColWidth(1, labelWidth, false)
-  labelTable:setColWidth(2, totalWidth, false)
+  local labelTable = addDataTable(2, labelsAndTotalsWidth + Helper.borderSize, x, 3)
+  setTextColWidth(labelTable, 2, sta.formatMoney(config.widthSample.total))
 
   local barWidth = cols * segWidth + (cols - 1) * Helper.borderSize
   local tables, tableX = {}, x + labelTable.properties.width + Helper.borderSize
@@ -1580,10 +1561,9 @@ function menu.createCargoLoadPanel(x, width)
     maxVisibleHeight = scrollHeight(Helper.frameBorder),
     backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
   })
-  local valueWidth = Helper.scaleX(config.loadValueWidth)
   t:setColWidth(1, math.floor((menu.leftPanelWidth or width) * config.nameColShare), false)
-  t:setColWidth(3, valueWidth, false)
-  t:setColWidth(4, valueWidth, false)
+  setTextColWidth(t, 3, ReadText(PAGE, 1025), sta.formatMoney(config.widthSample.load))
+  setTextColWidth(t, 4, ReadText(PAGE, 1025), sta.formatMoney(config.widthSample.load))
 
   local row = t:addRow(false, { fixed = true, bgColor = Color["row_title_background"] })
   row[1]:setColSpan(4):createText(ReadText(PAGE, 106), Helper.titleTextProperties)

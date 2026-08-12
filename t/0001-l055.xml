@@ -49,7 +49,6 @@
             <t id="1003">Estação principal</t>
             <t id="1004">Classe da nave</t>
             <t id="1005">Tipo de carga</t>
-            <t id="1006">Negócios internos</t>
             <t id="1007">Ordenar por</t>
             <t id="1008">Nome</t>
             <t id="1009">Lucro</t>
@@ -77,7 +76,6 @@
 
             <!-- Options page -->
             <t id="90101">Intervalo de atualização dos dados</t>
-            <t id="90102">Incluir negócios internos por padrão</t>
 
             <!-- Section: Debug (90900) -->
             <t id="90900">Depuração</t>

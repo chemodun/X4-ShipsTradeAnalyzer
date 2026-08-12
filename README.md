@@ -15,7 +15,7 @@ Brings the analysis of [X4 Player Ship Trade Analyzer](https://www.nexusmods.com
   - **Ships by Wares** - ranked bars, one per ship, split by the wares it traded.
   - **Wares by Ships** - the same, transposed: one bar per ware, split by the ships that carried it.
   - **Cargo Load** - how full each ship actually ran, average and best.
-- **Filters** applying to every view - **With Transactions** \(on by default: only ships that have something in the trade log\), parent station \(any, none, or one specific station\), ship class \(XL, L, M, S\), cargo type \(container, solid, liquid, gas\) and whether trades between your own stations count. The parent-station list follows the ships being shown, so turning **With Transactions** off also brings in the stations whose ships never trade - a station's own miners, for instance, deliver internally and never appear in the trade log.
+- **Filters** applying to every view - **With Transactions** \(on by default: only ships that have something in the trade log\), parent station \(any, none, or one specific station\), ship class \(XL, L, M, S\) and cargo type \(container, solid, liquid, gas\). The parent-station list follows the ships being shown, so turning **With Transactions** off also brings in the stations whose ships never trade - the game does not log deliveries between your own ships and your own stations, so a station's own miners never appear in the trade log at all.
 - **Sorting** of the ship list by name or by profit, with the filtered total shown above it.
 - **Reverse order** on the ranked views, to look at the bottom of the ranking instead of the top.
 - **No cut-off ranking**. The bar views fit as many bars as the screen has room for and page through the rest, so nothing is hidden behind a "top 25". The colour legend sits at the bottom of the screen and scrolls when it is long.
@@ -35,7 +35,6 @@ The data is read when the menu opens, and read again on a later open once the la
 
 Found under Extension Options.
 
-- **Include Internal Trades by Default** - the starting state of the internal-trade filter in the menu.
 - **Data Refresh Interval** - how old the last reading may be before opening the menu takes a new one, 0 to 10 in-game minutes. At 0 every open re-reads the trade log; at 10 a reading is kept for ten minutes and only **Refresh** replaces it sooner.
 - **Debug Level** - None, Debug or Trace. Leave at None unless you are reporting a problem.
 

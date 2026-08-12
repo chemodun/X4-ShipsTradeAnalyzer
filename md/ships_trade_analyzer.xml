@@ -6,7 +6,6 @@
     Ships Trade Analyzer - Options, sector graph and interaction-menu integration.
 
     Config keys under player.entity.$ShipsTradeAnalyzerConfig:
-      $includeInternalTrades  - bool: default state of the internal-trade filter
       $rescanIntervalMinutes  - int 0-10: how stale a scan may be before an open
                                 re-reads the log; 0 = always
       $debugLevel             - 'none' | 'debug' | 'trace'
@@ -26,7 +25,6 @@
         <library name="STA_Defaults" purpose="include_actions">
           <actions>
             <set_value name="$cfg" exact="table[
-              $includeInternalTrades = true,
               $rescanIntervalMinutes = 1,
               $debugLevel            = 'none',
             ]" />
@@ -95,7 +93,7 @@
         </cue>
 
         <!-- =============== Options menu registration =============== -->
-        <cue name="STA_Register_Menu" instantiate="true" version="3">
+        <cue name="STA_Register_Menu" instantiate="true" version="4">
           <conditions>
             <event_cue_signalled cue="md.Simple_Menu_API.Reloaded" />
           </conditions>
@@ -125,7 +123,7 @@
         </cue>
 
         <!-- =============== Options menu open callback =============== -->
-        <cue name="STA_Options_Menu" instantiate="true" version="3">
+        <cue name="STA_Options_Menu" instantiate="true" version="4">
           <conditions>
             <event_cue_signalled />
           </conditions>
@@ -138,15 +136,6 @@
               </run_actions>
 
               <include_actions ref="md.Options_Helper.Add_Empty_Row" />
-
-              <run_actions ref="md.Options_Helper.Add_Checkbox">
-                <param name="id" value="'includeInternalTrades'" />
-                <param name="col" value="1" />
-                <param name="textColSpan" value="11" />
-                <param name="text" value="{1972092439, 90102}" />
-                <param name="data" value="$cfg" />
-                <param name="handle" value="STA_HandleCheckbox" />
-              </run_actions>
 
               <!-- 0 re-reads the trade log on every menu open -->
               <run_actions ref="md.Options_Helper.Add_Slider">
@@ -198,17 +187,6 @@
         </cue>
 
         <!-- =============== Options handlers =============== -->
-        <cue name="STA_HandleCheckbox" instantiate="true" version="1">
-          <conditions>
-            <event_cue_signalled />
-          </conditions>
-          <actions>
-            <set_value name="$resultTable" exact="player.entity.$ShipsTradeAnalyzerConfig" />
-            <include_actions ref="md.Options_Helper.Process_Checkbox_Changed" />
-            <remove_value name="$resultTable" />
-          </actions>
-        </cue>
-
         <cue name="STA_HandleSlider" instantiate="true" version="1">
           <conditions>
             <event_cue_signalled />
