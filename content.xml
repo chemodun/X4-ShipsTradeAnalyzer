@@ -1,57 +1,62 @@
 <?xml version="1.0" encoding="utf-8"?>
 <content
-  id="ws_ships_trade_analyzer"
+  id="ws_3782385696"
   name="Ships Trade Analyzer"
   author="Chem O`Dun"
   version="100"
-  date="2026-08-10"
+  date="2026-08-12"
   save="false"
   sync="false"
-  description="Analyses the trade log of your ships in-game: profit per ship and per ware, transaction and completed-trade tables, profit graphs, ware breakdowns and cargo load statistics. Access via the right-click interaction menu of any player-owned ship or station.">
+  enabled="true"
+  lastupdate="1786569700"
+  description="Analyses the trade log of your ships in-game: profit per ship and per ware, transaction and completed-trade tables, profit graphs, ware breakdowns and cargo load statistics.">
   <text language="7"
-    description="Analysiert das Handelsprotokoll deiner Schiffe im Spiel: Gewinn pro Schiff und pro Ware, Transaktions- und Handelstabellen, Gewinndiagramme, Warenaufschlüsselungen und Frachtauslastungsstatistiken. Zugriff über das Interaktionsmenü eines spielereigenen Schiffs oder einer Station (Rechtsklick)."></text>
+    description="Analyses the trade log of your ships in-game: profit per ship and per ware, transaction and completed-trade tables, profit graphs, ware breakdowns and cargo load statistics."></text>
   <!-- French -->
   <text language="33"
-    description="Analyse le journal commercial de vos vaisseaux en jeu : bénéfice par vaisseau et par marchandise, tableaux des transactions et des échanges complets, graphiques de bénéfices, répartitions par marchandise et statistiques de remplissage des soutes. Accessible via le menu d'interaction (clic droit) de tout vaisseau ou station appartenant au joueur."></text>
+    description="Analyse le journal commercial de vos vaisseaux en jeu : bénéfice par vaisseau et par marchandise, tableaux des transactions et des échanges complets, graphiques de bénéfices, répartitions par marchandise et statistiques de remplissage des soutes."></text>
   <!-- Spanish -->
   <text language="34"
-    description="Analiza el registro comercial de tus naves en el juego: beneficio por nave y por mercancía, tablas de transacciones y de operaciones completadas, gráficos de beneficios, desgloses por mercancía y estadísticas de carga. Se accede mediante el menú de interacción (clic derecho) de cualquier nave o estación propiedad del jugador."></text>
+    description="Analiza el registro comercial de tus naves en el juego: beneficio por nave y por mercancía, tablas de transacciones y de operaciones completadas, gráficos de beneficios, desgloses por mercancía y estadísticas de carga."></text>
   <!-- Italian -->
   <text language="39"
-    description="Analizza il registro commerciale delle tue navi nel gioco: profitto per nave e per merce, tabelle delle transazioni e degli scambi completati, grafici dei profitti, ripartizioni per merce e statistiche di carico. Accessibile tramite il menu di interazione (clic destro) di qualsiasi nave o stazione di proprietà del giocatore."></text>
+    description="Analizza il registro commerciale delle tue navi nel gioco: profitto per nave e per merce, tabelle delle transazioni e degli scambi completati, grafici dei profitti, ripartizioni per merce e statistiche di carico."></text>
   <!-- Czech -->
   <text language="42"
-    description="Analyzuje obchodní záznamy vašich lodí přímo ve hře: zisk na loď a na zboží, tabulky transakcí a dokončených obchodů, grafy zisku, rozpady podle zboží a statistiky vytížení nákladového prostoru. Přístupné přes interakční nabídku libovolné hráčovy lodi nebo stanice (pravé tlačítko myši)."></text>
+    description="Analyzuje obchodní záznamy vašich lodí přímo ve hře: zisk na loď a na zboží, tabulky transakcí a dokončených obchodů, grafy zisku, rozpady podle zboží a statistiky vytížení nákladového prostoru."></text>
   <!-- English -->
   <text language="44"
-    description="Analyses the trade log of your ships in-game: profit per ship and per ware, transaction and completed-trade tables, profit graphs, ware breakdowns and cargo load statistics. Access via the right-click interaction menu of any player-owned ship or station."></text>
+    description="Analyses the trade log of your ships in-game: profit per ship and per ware, transaction and completed-trade tables, profit graphs, ware breakdowns and cargo load statistics."></text>
   <!-- Polish -->
   <text language="48"
-    description="Analizuje dziennik handlowy twoich statków w grze: zysk na statek i na towar, tabele transakcji i zakończonych transakcji handlowych, wykresy zysków, zestawienia towarów oraz statystyki wykorzystania ładowni. Dostęp poprzez menu interakcji dowolnego statku lub stacji gracza (prawy przycisk myszy)."></text>
+    description="Analizuje dziennik handlowy twoich statków w grze: zysk na statek i na towar, tabele transakcji i zakończonych transakcji handlowych, wykresy zysków, zestawienia towarów oraz statystyki wykorzystania ładowni."></text>
   <!-- German -->
   <text language="49"
-    description="Analysiert das Handelsprotokoll deiner Schiffe im Spiel: Gewinn pro Schiff und pro Ware, Transaktions- und Handelstabellen, Gewinndiagramme, Warenaufschlüsselungen und Frachtauslastungsstatistiken. Zugriff über das Interaktionsmenü eines spielereigenen Schiffs oder einer Station (Rechtsklick)."></text>
+    description="Analysiert das Handelsprotokoll deiner Schiffe im Spiel: Gewinn pro Schiff und pro Ware, Transaktions- und Handelstabellen, Gewinndiagramme, Warenaufschlüsselungen und Frachtauslastungsstatistiken."></text>
   <!-- Portuguese -->
   <text language="55"
-    description="Analisa o registro comercial das suas naves no jogo: lucro por nave e por mercadoria, tabelas de transações e de negócios concluídos, gráficos de lucro, detalhamentos por mercadoria e estatísticas de carga. Acesse pelo menu de interação (clique com o botão direito) de qualquer nave ou estação do jogador."></text>
+    description="Analisa o registro comercial das suas naves no jogo: lucro por nave e por mercadoria, tabelas de transações e de negócios concluídos, gráficos de lucro, detalhamentos por mercadoria e estatísticas de carga."></text>
   <!-- Japanese -->
   <text language="81"
-    description="ゲーム内で自艦隊の取引ログを分析します。艦船別・ウェア別の利益、取引明細と完了取引の表、利益グラフ、ウェア内訳、積載率統計を表示します。プレイヤー所有の艦船またはステーションの右クリックインタラクションメニューからアクセスします。"></text>
+    description="ゲーム内で自艦隊の取引ログを分析します。艦船別・ウェア別の利益、取引明細と完了取引の表、利益グラフ、ウェア内訳、積載率統計を表示します。"></text>
   <!-- Korean -->
   <text language="82"
-    description="게임 내에서 함선의 거래 기록을 분석합니다. 함선별/상품별 수익, 거래 내역 및 완료된 거래 표, 수익 그래프, 상품 분석, 화물 적재율 통계를 제공합니다. 플레이어 소유 함선이나 정거장의 우클릭 상호작용 메뉴를 통해 접근합니다."></text>
+    description="게임 내에서 함선의 거래 기록을 분석합니다. 함선별/상품별 수익, 거래 내역 및 완료된 거래 표, 수익 그래프, 상품 분석, 화물 적재율 통계를 제공합니다."></text>
   <!-- Chinese Simplified -->
   <text language="86"
-    description="在游戏内分析你的舰船贸易记录：每艘船和每种货物的利润、交易与完整贸易表格、利润图表、货物细分以及货舱装载率统计。通过任意玩家所属舰船或空间站的右键互动菜单访问。"></text>
+    description="在游戏内分析你的舰船贸易记录：每艘船和每种货物的利润、交易与完整贸易表格、利润图表、货物细分以及货舱装载率统计。"></text>
   <!-- Chinese Traditional -->
   <text language="88"
-    description="在遊戲內分析你的艦船貿易記錄：每艘船和每種貨物的利潤、交易與完整貿易表格、利潤圖表、貨物細分以及貨艙裝載率統計。透過任意玩家所屬艦船或太空站的右鍵互動選單存取。"></text>
+    description="在遊戲內分析你的艦船貿易記錄：每艘船和每種貨物的利潤、交易與完整貿易表格、利潤圖表、貨物細分以及貨艙裝載率統計。"></text>
   <!-- Turkish -->
   <text language="90"
-    description="Gemilerinizin ticaret kaydını oyun içinde analiz eder: gemi ve mal başına kâr, işlem ve tamamlanmış ticaret tabloları, kâr grafikleri, mal dökümleri ve kargo doluluk istatistikleri. Oyuncuya ait herhangi bir geminin veya istasyonun sağ tık etkileşim menüsü üzerinden erişilir."></text>
+    description="Gemilerinizin ticaret kaydını oyun içinde analiz eder: gemi ve mal başına kâr, işlem ve tamamlanmış ticaret tabloları, kâr grafikleri, mal dökümleri ve kargo doluluk istatistikleri."></text>
+  <!-- Bulgarian -->
+  <text language="359"
+    description="Анализира търговския дневник на вашите кораби в играта: печалба на кораб и на стока, таблици с транзакции и завършени сделки, графики на печалбата, разпределение по стоки и статистика за натоварването на товара."></text>
   <!-- Ukrainian -->
   <text language="380"
-    description="Аналізує торговий журнал ваших кораблів у грі: прибуток на корабель і на товар, таблиці транзакцій та завершених угод, графіки прибутку, розподіл за товарами та статистику завантаження трюму. Доступ через контекстне меню взаємодії будь-якого корабля або станції гравця (права кнопка миші)."></text>
+    description="Аналізує торговий журнал ваших кораблів у грі: прибуток на корабель і на товар, таблиці транзакцій та завершених угод, графіки прибутку, розподіл за товарами та статистику завантаження трюму."></text>
   <dependency version="800"></dependency>
   <dependency id="ws_2042901274" optional="false" name="SirNukes Mod Support APIs" version="195"></dependency>
   <dependency id="ws_3715253556" optional="false" name="Options Helper" version="110"></dependency>
