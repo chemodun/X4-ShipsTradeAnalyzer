@@ -46,17 +46,52 @@ Brings the analysis of [X4 Player Ship Trade Analyzer](https://www.nexusmods.com
 
 Right-click any player-owned ship and pick **Trade Analyzer**.
 
-Opening will preselects that ship, if ship has transactions in the log. Otherwise, the first ship in the list is selected.
+![Context Menu](docs/images/context_menu.png)
 
+Opening will preselects that ship, if ship has transactions in the log. Otherwise, the first ship in the list is selected.
 A ship is picked by making its row the current one in the list on the left, exactly like the object list on the map.
 
-**Profit over Time** draws several ships at once, so there the list works like the map's as well: ctrl-click adds or removes a ship, shift-click takes a range, and a plain click goes back to a single one. Up to 8 lines are drawn - picking a ninth ship drops the one picked first.
+- Default view is **Details** in **Transactions** mode, showing the selected ship's trades in a table.
+  ![Details - Transactions mode](docs/images/details_mode_transactions.png)
+
+- There is an example of the same details in **Trades** mode (available not for all ships)
+  ![Details - Trades mode](docs/images/details_mode_trades.png)
+
+- **Profit over Time** draws several ships at once, so there the list works like the map's as well: ctrl-click adds or removes a ship, shift-click takes a range, and a plain click goes back to a single one.
+
+  ![Profit over Time](docs/images/profit_over_time.png)
+
+  Up to 8 lines are drawn - picking a ninth ship drops the one picked first.
+
+  ![Profit over Time - 8 ships](docs/images/profit_over_time_8.png)
+
+- **Ships by Wares** - displays a ranked bar chart, one bar per ship, split by the wares it traded. The total profit is shown above the list.
+
+  ![Ships by Wares](docs/images/ships_by_wares.png)
+
+  You can change a bar details but take in account that the higher details will decrease count of possible lines in chart per page due to game engine limitations.
+
+  ![Ships by Wares - max details](docs/images/ships_by_wares_max_details.png)
+
+- **Wares by Ships** - the same, transposed: one bar per ware, split by the ships that carried it.
+
+  ![Wares by Ships - max details](docs/images/wares_by_ships_max_details.png)
+
+- **Cargo Load** - how full each ship actually ran, average and best.
+
+  ![Cargo Load](docs/images/cargo_load.png)
+
+  And you can use the reverse order to look at the bottom of the ranking instead of the top.
+
+  ![Cargo Load - reverse order](docs/images/cargo_load_reverse.png)
 
 The data is read when the menu opens, and read again on a later open once the last reading is older than the **Data Refresh Interval** - one in-game minute by default. Press **Refresh** to read it again at any time.
 
 ## Settings
 
 Found under Extension Options.
+
+![Options](docs/images/options.png)
 
 - **Data Refresh Interval** - how old the last reading may be before opening the menu takes a new one, 0 to 10 in-game minutes. At 0 every open re-reads the trade log; at 10 a reading is kept for ten minutes and only **Refresh** replaces it sooner.
 - **Internal Trades Separation** - used by **Inject Internal**: two trades of the same ware in the same direction further apart than this came from separate visits to the home station, 5 to 30 in-game minutes. Lower it for short local runs, raise it for long hauls. Changing it re-reads the trade log on the next menu open.
@@ -74,7 +109,7 @@ Found under Extension Options.
 
 ## Changelog
 
-### [1.00] - 2026-08-??
+### [1.00] - 2026-08-12
 
 - **Added**
   - Initial release.
