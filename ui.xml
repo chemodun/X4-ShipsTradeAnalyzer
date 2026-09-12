@@ -4,6 +4,7 @@
     <environment type="menus">
         <dependency name="sn_mod_support_apis" />
         <dependency name="ego_detailmonitor" />
+        <dependency name="ego_interactmenu" />
         <file name="ui/sta_data.lua" />
         <file name="ui/sta_graph.lua" />
         <file name="ui/sta_trades.lua" />

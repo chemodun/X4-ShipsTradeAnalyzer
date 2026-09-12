@@ -17,6 +17,8 @@ Brings the analysis of [X4 Player Ship Trade Analyzer](https://www.nexusmods.com
 - **Filters** applying to every view, by assigned station, by ship size, by cargo type, etc.
 - **Sorting** of the ship list by name or by estimated profit, with the filtered total shown above it.
 - **Reverse order** on the ranked views, to look at the bottom of the ranking instead of the top.
+- **The interact menu on any ship in the list** - right-click a row for the same menu the map's object list opens: orders, information, rename, crew, comm and the rest, without leaving the analyzer.
+- **Show on Map** - a button on every ship row, which opens the map centred on that ship with it already selected. Coming back returns you to the analyzer exactly where you left it.
 
 ## Requirements
 
@@ -85,6 +87,10 @@ A ship is picked by making its row the current one in the list on the left, exac
 
   ![Cargo Load - reverse order](docs/images/cargo_load_reverse.png)
 
+Right-clicking a ship **in the list on the left** opens the game's own interact menu for it, the same one the map's object list opens, so its orders, information, rename and comm are all reachable without leaving the analyzer.
+
+The button at the start of every ship row opens the map centred on that ship, with it already selected. Going back returns you to the analyzer as you left it.
+
 The data is read when the menu opens, and read again on a later open once the last reading is older than the **Data Refresh Interval** - one in-game minute by default. Press **Refresh** to read it again at any time.
 
 ## Settings
@@ -108,6 +114,12 @@ Found under Extension Options.
 - [SirNukes](https://next.nexusmods.com/profile/sirnukes?gameId=2659) — for the Mod Support APIs that power the UI hooks.
 
 ## Changelog
+
+### [1.01] - 2026-09-12
+
+- **Added**
+  - The game's own interact menu on a right-click of any ship in the list, the same one the map's object list opens.
+  - A **Show on Map** button on every ship row, opening the map centred on that ship with it selected. Thanks to WHOAMI for the both ideas.
 
 ### [1.00] - 2026-08-12
 

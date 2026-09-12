@@ -390,7 +390,8 @@ end
 
 -- *** callbacks ***
 
-function menu.onShowMenu()
+-- `state` marks a return from a menu an interact forward opened.
+function menu.onShowMenu(state)
   if menu.mode == nil then
     resetState()
   end
@@ -401,9 +402,10 @@ function menu.onShowMenu()
     menu.page = 1
   end
 
-  -- Opened on an object: a ship preselects itself, a station its filter entry.
+  -- Opened on an object: a ship preselects itself, a station its filter entry. A
+  -- return keeps the picks the player left instead.
   local id64 = menu.param[3]
-  if id64 ~= nil and id64 ~= 0 then
+  if (not state) and id64 ~= nil and id64 ~= 0 then
     local luaId = ConvertStringToLuaID(tostring(id64))
     -- Rebuilt through ConvertIDTo64Bit: the event's own parameter need not
     -- stringify the way a stored key does.
@@ -435,6 +437,8 @@ function menu.viewCreated(_layer, ...)
 end
 
 function menu.refreshInfoFrame()
+  -- A rebuild now supersedes one queued for the next update.
+  menu.refreshQueued = nil
   menu.createFrame()
 end
 
@@ -449,6 +453,14 @@ function menu.buttonRefresh()
   -- Cached pairings belong to the previous scan.
   menu.expanded = {}
   refreshFromFirstPage()
+end
+
+-- Map parameter 4 both focuses the object and selects it, 3 is showzone. No noreturn,
+-- so Back returns here.
+function menu.buttonShowOnMap(ship)
+  sta.traceLog("showOnMap: %s.", ship.fullName)
+  Helper.closeMenuAndOpenNewMenu(menu, "MapMenu", { 0, 0, true, ship.id64 })
+  menu.cleanup()
 end
 
 function menu.selectMode(_, id)
@@ -920,64 +932,72 @@ local function createLegend(x, width, entries, tabOrder, colorOf)
   end
 end
 
--- A checkbox without an explicit width stretches over the cell, and there is no
--- halign for non-text widgets, so it is squared and centred by hand.
+-- A non-text widget has no halign, so a square one is centred by its own x offset,
+-- in the pre-scaled units `scaling = false` pairs with.
+local function centerInCell(cell, size)
+  cell.properties.x = math.max(0, math.floor((cell:getColSpanWidth() - size) / 2))
+  return cell
+end
+
+-- A checkbox without an explicit width stretches over the cell.
 local function createCenteredCheckBox(cell, checked)
   local size = Helper.scaleX(Helper.standardTextHeight)
   cell:createCheckBox(checked, { width = size, height = size, scaling = false })
-  cell.properties.x = math.max(0, math.floor((cell:getColSpanWidth() - size) / 2))
-  return cell
+  return centerInCell(cell, size)
 end
 
 function menu.createLeftPanel(x, width)
   -- Only the graph draws several ships, so only it needs the multiselection.
   local multi = (menu.view == "graph")
 
-  -- Four columns for both halves: a control is a label in 1 and the widget over
-  -- 2-4, a ship row is the name over 1-3 and its profit in 4.
-  local leftTable = menu.infoFrame:addTable(4, {
+  -- A control is a label over 1-2 and the widget over 3-5; a ship row is the map
+  -- button in 1, the name over 2-4 and its profit in 5.
+  local leftTable = menu.infoFrame:addTable(5, {
     tabOrder = 1, width = width, x = x, y = Helper.frameBorder, borderEnabled = true,
     maxVisibleHeight = scrollHeight(Helper.frameBorder), multiSelect = multi,
     backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
   })
+  -- Column 1 belongs to the ship rows alone; every other row spans over it.
+  local buttonSize = Helper.scaleY(Helper.standardTextHeight)
+  leftTable:setColWidth(1, buttonSize + Helper.standardContainerOffset, false)
 
   local row = leftTable:addRow(false, { fixed = true, bgColor = Color["row_title_background"] })
-  row[1]:setColSpan(4):createText(ReadText(PAGE, 1000), Helper.titleTextProperties)
+  row[1]:setColSpan(5):createText(ReadText(PAGE, 1000), Helper.titleTextProperties)
 
   -- View
   row = leftTable:addRow(true, { fixed = true })
-  row[1]:createText(ReadText(PAGE, 1002), { halign = "left" })
+  row[1]:setColSpan(2):createText(ReadText(PAGE, 1002), { halign = "left" })
   local viewEntries = {}
   for _, v in ipairs(views) do
     viewEntries[#viewEntries + 1] = { id = v.id, text = ReadText(PAGE, v.text) }
   end
-  row[2]:setColSpan(3):createDropDown(dropdownOptions(viewEntries), { startOption = menu.view, height = Helper.standardButtonHeight })
-  row[2].handlers.onDropDownConfirmed = menu.selectView
+  row[3]:setColSpan(3):createDropDown(dropdownOptions(viewEntries), { startOption = menu.view, height = Helper.standardButtonHeight })
+  row[3].handlers.onDropDownConfirmed = menu.selectView
 
   -- Analysis mode
   row = leftTable:addRow(true, { fixed = true })
-  row[1]:createText(ReadText(PAGE, 1001), { halign = "left" })
+  row[1]:setColSpan(2):createText(ReadText(PAGE, 1001), { halign = "left" })
   local modeEntries = {}
   for _, m in ipairs(modes) do
     modeEntries[#modeEntries + 1] = { id = m.id, text = ReadText(PAGE, m.text) }
   end
-  row[2]:setColSpan(3):createDropDown(dropdownOptions(modeEntries), { startOption = menu.mode, height = Helper.standardButtonHeight })
-  row[2].handlers.onDropDownConfirmed = menu.selectMode
+  row[3]:setColSpan(3):createDropDown(dropdownOptions(modeEntries), { startOption = menu.mode, height = Helper.standardButtonHeight })
+  row[3].handlers.onDropDownConfirmed = menu.selectMode
 
   -- Not a filter: it changes what the log is read as, so it sits above them.
   row = leftTable:addRow(true, { fixed = true })
-  row[1]:createText(ReadText(PAGE, 1035), { halign = "left" })
-  createCenteredCheckBox(row[2]:setColSpan(3), sta.injectInternal)
-  row[2].handlers.onClick = function(_, checked) return menu.toggleInjectInternal(checked) end
+  row[1]:setColSpan(2):createText(ReadText(PAGE, 1035), { halign = "left" })
+  createCenteredCheckBox(row[3]:setColSpan(3), sta.injectInternal)
+  row[3].handlers.onClick = function(_, checked) return menu.toggleInjectInternal(checked) end
 
   -- Filters
   row = leftTable:addRow(false, { fixed = true, bgColor = Color["row_title_background"] })
-  row[1]:setColSpan(4):createText(ReadText(PAGE, 121), Helper.titleTextProperties)
+  row[1]:setColSpan(5):createText(ReadText(PAGE, 121), Helper.titleTextProperties)
 
   row = leftTable:addRow(true, { fixed = true })
-  row[1]:createText(ReadText(PAGE, 1033), { halign = "left" })
-  createCenteredCheckBox(row[2]:setColSpan(3), menu.filter.withTransactions)
-  row[2].handlers.onClick = function(_, checked) return menu.toggleWithTransactions(checked) end
+  row[1]:setColSpan(2):createText(ReadText(PAGE, 1033), { halign = "left" })
+  createCenteredCheckBox(row[3]:setColSpan(3), menu.filter.withTransactions)
+  row[3].handlers.onClick = function(_, checked) return menu.toggleWithTransactions(checked) end
 
   local stationEntries = {
     { id = "any",  text = ReadText(PAGE, 107) },
@@ -987,66 +1007,66 @@ function menu.createLeftPanel(x, width)
     stationEntries[#stationEntries + 1] = { id = station.key, text = station.name }
   end
   row = leftTable:addRow(true, { fixed = true })
-  row[1]:createText(ReadText(PAGE, 1003), { halign = "left" })
-  row[2]:setColSpan(3):createDropDown(dropdownOptions(stationEntries), { startOption = menu.filter.parentStation, height = Helper.standardButtonHeight })
-  row[2].handlers.onDropDownConfirmed = menu.selectParentStation
+  row[1]:setColSpan(2):createText(ReadText(PAGE, 1003), { halign = "left" })
+  row[3]:setColSpan(3):createDropDown(dropdownOptions(stationEntries), { startOption = menu.filter.parentStation, height = Helper.standardButtonHeight })
+  row[3].handlers.onDropDownConfirmed = menu.selectParentStation
 
   local classEntries = { { id = "all", text = ReadText(PAGE, 109) } }
   for _, classId in ipairs(sta.shipClasses) do
     classEntries[#classEntries + 1] = { id = classId, text = sta.classLetter(classId) }
   end
   row = leftTable:addRow(true, { fixed = true })
-  row[1]:createText(ReadText(PAGE, 1004), { halign = "left" })
-  row[2]:setColSpan(3):createDropDown(dropdownOptions(classEntries), { startOption = menu.filter.shipClass, height = Helper.standardButtonHeight })
-  row[2].handlers.onDropDownConfirmed = menu.selectShipClass
+  row[1]:setColSpan(2):createText(ReadText(PAGE, 1004), { halign = "left" })
+  row[3]:setColSpan(3):createDropDown(dropdownOptions(classEntries), { startOption = menu.filter.shipClass, height = Helper.standardButtonHeight })
+  row[3].handlers.onDropDownConfirmed = menu.selectShipClass
 
   local cargoEntries = {}
   for _, c in ipairs(cargoTypes) do
     cargoEntries[#cargoEntries + 1] = { id = c.id, text = ReadText(PAGE, c.text) }
   end
   row = leftTable:addRow(true, { fixed = true })
-  row[1]:createText(ReadText(PAGE, 1005), { halign = "left" })
-  row[2]:setColSpan(3):createDropDown(dropdownOptions(cargoEntries), { startOption = menu.filter.cargoType, height = Helper.standardButtonHeight })
-  row[2].handlers.onDropDownConfirmed = menu.selectCargoType
+  row[1]:setColSpan(2):createText(ReadText(PAGE, 1005), { halign = "left" })
+  row[3]:setColSpan(3):createDropDown(dropdownOptions(cargoEntries), { startOption = menu.filter.cargoType, height = Helper.standardButtonHeight })
+  row[3].handlers.onDropDownConfirmed = menu.selectCargoType
 
   row = leftTable:addRow(true, { fixed = true })
-  row[1]:createText(ReadText(PAGE, 1007), { halign = "left" })
+  row[1]:setColSpan(2):createText(ReadText(PAGE, 1007), { halign = "left" })
   local sortEntries = {
     { id = "profit", text = ReadText(PAGE, 1009) },
     { id = "name",   text = ReadText(PAGE, 1008) },
   }
-  row[2]:setColSpan(3):createDropDown(dropdownOptions(sortEntries), { startOption = menu.sortBy, height = Helper.standardButtonHeight })
-  row[2].handlers.onDropDownConfirmed = menu.selectSort
+  row[3]:setColSpan(3):createDropDown(dropdownOptions(sortEntries), { startOption = menu.sortBy, height = Helper.standardButtonHeight })
+  row[3].handlers.onDropDownConfirmed = menu.selectSort
 
   if isRanked(menu.view) then
     row = leftTable:addRow(true, { fixed = true })
-    row[1]:createText(ReadText(PAGE, 1011), { halign = "left" })
-    createCenteredCheckBox(row[2]:setColSpan(3), menu.reverse)
-    row[2].handlers.onClick = function(_, checked) return menu.toggleReverse(checked) end
+    row[1]:setColSpan(2):createText(ReadText(PAGE, 1011), { halign = "left" })
+    createCenteredCheckBox(row[3]:setColSpan(3), menu.reverse)
+    row[3].handlers.onClick = function(_, checked) return menu.toggleReverse(checked) end
   end
 
   -- Both buy rows for the right panel: the legend gives up its reserved band, the
   -- slider puts fewer tables side by side.
   if hasLegend(menu.view) then
     row = leftTable:addRow(true, { fixed = true })
-    row[1]:createText(ReadText(PAGE, 1010), { halign = "left" })
-    createCenteredCheckBox(row[2]:setColSpan(3), menu.showLegend)
-    row[2].handlers.onClick = function(_, checked) return menu.toggleLegend(checked) end
+    row[1]:setColSpan(2):createText(ReadText(PAGE, 1010), { halign = "left" })
+    createCenteredCheckBox(row[3]:setColSpan(3), menu.showLegend)
+    row[3].handlers.onClick = function(_, checked) return menu.toggleLegend(checked) end
   end
 
   if isBarView(menu.view) then
     row = leftTable:addRow(true, { fixed = true })
-    row[1]:createText(ReadText(PAGE, 1031), { halign = "left" })
-    row[2]:setColSpan(3):createSliderCell({
+    row[1]:setColSpan(2):createText(ReadText(PAGE, 1031), { halign = "left" })
+    row[3]:setColSpan(3):createSliderCell({
       height = Helper.standardButtonHeight,
       min = 1, max = config.barTablesMax, start = menu.barTables, step = 1,
     })
-    row[2].handlers.onSliderCellChanged = function(_, value) return menu.setBarTables(value) end
-    row[2].handlers.onSliderCellConfirm = function() return refreshFromFirstPage() end
+    row[3].handlers.onSliderCellChanged = function(_, value) return menu.setBarTables(value) end
+    row[3].handlers.onSliderCellConfirm = function() return refreshFromFirstPage() end
   end
 
   row = leftTable:addRow(true, { fixed = true })
-  row[1]:setColSpan(4):createButton({}):setText(ReadText(PAGE, 1012), { halign = "center" })
+  row[1]:setColSpan(5):createButton({}):setText(ReadText(PAGE, 1012), { halign = "center" })
   row[1].handlers.onClick = function() return menu.buttonRefresh() end
 
   -- Ship list
@@ -1057,14 +1077,14 @@ function menu.createLeftPanel(x, width)
   end
 
   row = leftTable:addRow(false, { fixed = true, bgColor = Color["row_title_background"] })
-  row[1]:setColSpan(3):createText(ReadText(PAGE, 122), Helper.titleTextProperties)
-  row[4]:createText(sta.formatMoney(totalProfit), {
+  row[1]:setColSpan(4):createText(ReadText(PAGE, 122), Helper.titleTextProperties)
+  row[5]:createText(sta.formatMoney(totalProfit), {
     halign = "right", color = (totalProfit >= 0) and Color["text_positive"] or Color["text_negative"],
   })
 
   if #rows == 0 then
     row = leftTable:addRow(false, {})
-    row[1]:setColSpan(4):createText(sta.scanned and ReadText(PAGE, 1016) or ReadText(PAGE, 1015),
+    row[1]:setColSpan(5):createText(sta.scanned and ReadText(PAGE, 1016) or ReadText(PAGE, 1015),
       { halign = "center", wordwrap = true, color = Color["text_inactive"] })
     menu.leftRowCount = #leftTable.rows
     return
@@ -1078,8 +1098,8 @@ function menu.createLeftPanel(x, width)
   -- own count there - one plain text row, which is also the pitch probe.
   if isRanked(menu.view) then
     row = leftTable:addRow(false, {})
-    row[1]:setColSpan(3):createText(ReadText(PAGE, 1032), { halign = "left" })
-    row[4]:createText(tostring(#rows), { halign = "right" })
+    row[1]:setColSpan(4):createText(ReadText(PAGE, 1032), { halign = "left" })
+    row[5]:createText(tostring(#rows), { halign = "right" })
     menu.measuredPitch = row:getHeight() + Helper.borderSize
     menu.leftRowCount  = #leftTable.rows
     sta.traceLog("rowPitch: measured %d over 1 count row, %d left panel row(s).",
@@ -1088,9 +1108,10 @@ function menu.createLeftPanel(x, width)
   end
 
   -- A ship is picked by making its row current, so the rows carry their id as row
-  -- data and no cell carries a click handler.
+  -- data; the map button is the only cell with a handler.
   local selectedRow
   local firstShipRow
+  local mapUnlocked = C.IsStoryFeatureUnlocked("x4ep1_map")
   local plottedSet = multi and plottedShips() or {}
   for _, entry in ipairs(rows) do
     local key     = entry.ship.key
@@ -1100,16 +1121,21 @@ function menu.createLeftPanel(x, width)
     if key == menu.selectedShip then
       selectedRow = row.index
     end
+    row[1]:createButton({ width = buttonSize, height = buttonSize, scaling = false,
+      active = mapUnlocked, mouseOverText = ReadText(1001, 3408) }):setIcon("menu_center_selection")
+    centerInCell(row[1], buttonSize)
+    row[1].handlers.onClick = function() return menu.buttonShowOnMap(entry.ship) end
     -- A plotted row takes its line's colour; the inline icon follows the cell.
     local icon = (entry.ship.icon ~= "") and ("\027[" .. entry.ship.icon .. "] ") or ""
-    row[1]:setColSpan(3):createText(icon .. entry.ship.fullName,
+    row[2]:setColSpan(3):createText(icon .. entry.ship.fullName,
       { halign = "left", color = plotted and shipColor(key) or nil })
-    row[4]:createText(sta.formatMoney(entry.profit), {
+    row[5]:createText(sta.formatMoney(entry.profit), {
       halign = "right", color = (entry.profit >= 0) and Color["text_positive"] or Color["text_negative"],
     })
   end
 
-  -- Every ship row is the same plain text, so one of them is the pitch.
+  -- Every ship row is the same shape, so one is the pitch. The button is text height,
+  -- so the row still measures as the plain text row it was.
   menu.measuredPitch = firstShipRow:getHeight() + Helper.borderSize
   -- What the right panel has left of the frame's row pool.
   menu.leftRowCount  = #leftTable.rows
@@ -1603,12 +1629,117 @@ function menu.createCargoLoadPanel(x, width)
   end
 end
 
+-- *** interact menu ***
+
+-- Actions the interact menu hands back instead of finishing, and the menu and mode
+-- its own standalone branch opens for each.
+local interactForwards = {
+  renamecontext       = { target = "MapMenu", mode = "renamecontext" },
+  crewtransfercontext = { target = "MapMenu", mode = "crewtransfercontext" },
+  dropwarescontext    = { target = "MapMenu", mode = "dropwarescontext" },
+  changelogocontext   = { target = "MapMenu", mode = "changelogocontext" },
+  boardingcontext     = { target = "MapMenu", mode = "boardingcontext" },
+  sellships           = { target = "MapMenu", mode = "sellships" },
+  venturepatroninfo   = { target = "MapMenu", mode = "venturepatroninfo" },
+  venturereport       = { target = "MapMenu", mode = "venturereport" },
+  behaviourinspection = { target = "MapMenu", mode = "behaviourinspection" },
+  markashostile       = { target = "UserQuestionMenu", mode = "markashostile" },
+  removebuildstorage  = { target = "UserQuestionMenu", mode = "removebuildstorage" },
+  -- The map folds both of these into one mode, keyed by the first payload slot.
+  info = { target = "MapMenu", mode = "infomode",
+    payload = function(p) return { "info", p[1], p[2] } end },
+  mission = { target = "MapMenu", mode = "infomode",
+    payload = function(p) return { "mission", p[1], p[2], p[3] } end },
+  -- The handed-back payload drops the slot the map mode reads the loop flag from.
+  tradecontext = { target = "MapMenu", mode = "tradecontext",
+    payload = function(p) return { p[1], nil, p[3], nil, p[4], p[5] } end },
+  -- Map picking modes; the cursor override the map's own callback adds is lost.
+  attackmultiple      = { target = "MapMenu", mode = "orderparam_selectenemies" },
+  collectdeployables  = { target = "MapMenu", mode = "orderparam_selectplayerdeployables" },
+}
+
+-- No noreturn: the opened menu gets this one as its back target.
+local function forwardInteract(entry, param)
+  local payload = entry.payload and entry.payload(param) or param
+  local args
+  if entry.target == "UserQuestionMenu" then
+    args = { 0, 0, entry.mode, payload }
+  else
+    args = { 0, 0, true, nil, nil, entry.mode, payload }
+  end
+  Helper.closeMenuAndOpenNewMenu(menu, entry.target, args)
+  menu.cleanup()
+end
+
+-- No selection is passed: with none, the interact menu offers the right-clicked
+-- ship's own actions rather than orders for a selected fleet.
+function menu.onTableRightMouseClick(uitable, row, posx, posy)
+  local rowdata = menu.rowDataMap and menu.rowDataMap[uitable] and menu.rowDataMap[uitable][row]
+  if (type(rowdata) ~= "table") or (rowdata[1] ~= "ship") then
+    return
+  end
+
+  -- The list is only as fresh as the last scan, so a row can outlive its ship.
+  local ship = shipByKey(rowdata[2])
+  if (ship == nil) or (not C.IsComponentOperational(ship.id64)) then
+    sta.traceLog("interact: row %d holds no live ship (%s).", row, tostring(rowdata[2]))
+    return
+  end
+
+  sta.traceLog("interact: opened on %s, row %d.", ship.fullName, row)
+  Helper.openInteractMenu(menu, {
+    component = ship.id64,
+    playerships = {}, otherobjects = {}, playerdeployables = {},
+    componentmissions = {},
+    mouseX = posx, mouseY = posy,
+  })
+end
+
+function menu.onInteractMenuCallback(kind, param)
+  local forward = interactForwards[kind]
+  if forward then
+    sta.traceLog("interact: %s forwarded to %s as %s.", kind, forward.target, forward.mode)
+    return forwardInteract(forward, param)
+  end
+
+  if kind == "close" then
+    return menu.onCloseElement("close")
+  elseif kind == "newmenu" then
+    Helper.closeMenuAndOpenNewMenu(menu, param[1], param[2])
+    return menu.cleanup()
+  elseif kind == "newconversation" then
+    Helper.closeMenuForNewConversation(menu, param[1], param[2], param[3])
+    return menu.cleanup()
+  elseif kind == "comm" then
+    -- param is the bare component here, not a table.
+    local entities = Helper.getSuitableControlEntities(param, true, true)
+    local direct   = (#entities == 1)
+    Helper.closeMenuForNewConversation(menu,
+      direct and "default" or "gMain_propertyResult",
+      direct and entities[1] or ConvertStringToLuaID(tostring(C.GetPlayerComputerID())),
+      param)
+    return menu.cleanup()
+  end
+
+  -- What is left is an order already carried out; a trade may have closed under it.
+  sta.traceLog("interact: %s handled as a refresh.", kind)
+  menu.refreshInfoFrame()
+end
+
+function menu.onInteractMenuClose()
+end
+
+-- Read by onShowMenu as "restored", never for its value.
+function menu.onSaveState()
+  return true
+end
+
 -- *** standard menu callbacks ***
 
 function menu.onUpdate()
-  -- Drained here, not where it was raised: onRowChanged runs inside the engine's
-  -- own frame setup, which must not be torn down under it.
-  if menu.refreshQueued then
+  -- Drained here, not where it was raised: onRowChanged runs inside the engine's own
+  -- frame setup, and a right click raises it under an interact menu about to open.
+  if menu.refreshQueued and (not Helper.interactMenuActive) then
     menu.refreshQueued = nil
     return menu.createFrame()
   end
@@ -1618,6 +1749,10 @@ function menu.onUpdate()
 end
 
 function menu.onCloseElement(dueToClose)
+  -- An open interact menu takes the close first, and this menu stays.
+  if Helper.closeInteractMenu() then
+    return
+  end
   Helper.closeMenu(menu, dueToClose)
   menu.cleanup()
 end
