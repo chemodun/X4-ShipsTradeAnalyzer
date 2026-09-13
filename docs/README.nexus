@@ -21,6 +21,8 @@ Brings the analysis of [url=https://www.nexusmods.com/x4foundations/mods/1801]X4
 [*] [b]Filters[/b] applying to every view, by assigned station, by ship size, by cargo type, etc.
 [*] [b]Sorting[/b] of the ship list by name or by estimated profit, with the filtered total shown above it.
 [*] [b]Reverse order[/b] on the ranked views, to look at the bottom of the ranking instead of the top.
+[*] [b]The interact menu on any ship in the list[/b] - right-click a row for the same menu the map's object list opens: orders, information, rename, crew, comm and the rest, without leaving the analyzer.
+[*] [b]Show on Map[/b] - a button on every ship row, which opens the map centred on that ship with it already selected. Coming back returns you to the analyzer exactly where you left it.
 [/list]
 [size=3][u][b]Requirements[/b][/u][/size]
 [list]
@@ -95,6 +97,10 @@ A ship is picked by making its row the current one in the list on the left, exac
 
   [img]https://raw.githubusercontent.com/chemodun/X4-ShipsTradeAnalyzer/refs/heads/main/docs/images/cargo_load_reverse.png[/img]
 
+Right-clicking a ship [b]in the list on the left[/b] opens the game's own interact menu for it, the same one the map's object list opens, so its orders, information, rename and comm are all reachable without leaving the analyzer.
+[img]https://raw.githubusercontent.com/chemodun/X4-ShipsTradeAnalyzer/refs/heads/main/docs/images/context_menu_in_analyzer.png[/img]
+The button at the start of every ship row opens the map centred on that ship, with it already selected. Going back returns you to the analyzer as you left it.
+[img]https://raw.githubusercontent.com/chemodun/X4-ShipsTradeAnalyzer/refs/heads/main/docs/images/button_show_on_the_map.png[/img]
 The data is read when the menu opens, and read again on a later open once the last reading is older than the [b]Data Refresh Interval[/b] - one in-game minute by default. Press [b]Refresh[/b] to read it again at any time.
 
 [size=3][u][b]Settings[/b][/u][/size]
@@ -119,6 +125,15 @@ Found under Extension Options.
 [/list]
 [size=3][u][b]Changelog[/b][/u][/size]
 
+[size=3][u][i][1.01] - 2026-09-12[/i][/u][/size]
+[list]
+[*] [b]Added[/b]
+[list]
+[*] The game's own interact menu on a right-click of any ship in the list, the same one the map's object list opens.
+[*] A [b]Show on Map[/b] button on every ship row, opening the map centred on that ship with it selected.
+[*] Thanks to WHOAMI for the both ideas.
+[/list]
+[/list]
 [size=3][u][i][1.00] - 2026-08-12[/i][/u][/size]
 [list]
 [*] [b]Added[/b]
