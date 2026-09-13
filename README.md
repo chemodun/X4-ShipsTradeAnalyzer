@@ -88,9 +88,9 @@ A ship is picked by making its row the current one in the list on the left, exac
   ![Cargo Load - reverse order](docs/images/cargo_load_reverse.png)
 
 Right-clicking a ship **in the list on the left** opens the game's own interact menu for it, the same one the map's object list opens, so its orders, information, rename and comm are all reachable without leaving the analyzer.
-
+![Context Menu in Analyzer](docs/images/context_menu_in_analyzer.png)
 The button at the start of every ship row opens the map centred on that ship, with it already selected. Going back returns you to the analyzer as you left it.
-
+![Show on the Map button](docs/images/button_show_on_the_map.png)
 The data is read when the menu opens, and read again on a later open once the last reading is older than the **Data Refresh Interval** - one in-game minute by default. Press **Refresh** to read it again at any time.
 
 ## Settings
@@ -119,7 +119,8 @@ Found under Extension Options.
 
 - **Added**
   - The game's own interact menu on a right-click of any ship in the list, the same one the map's object list opens.
-  - A **Show on Map** button on every ship row, opening the map centred on that ship with it selected. Thanks to WHOAMI for the both ideas.
+  - A **Show on Map** button on every ship row, opening the map centred on that ship with it selected.
+  - Thanks to WHOAMI for the both ideas.
 
 ### [1.00] - 2026-08-12
 
