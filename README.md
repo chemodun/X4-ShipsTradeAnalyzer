@@ -120,7 +120,7 @@ Found under Extension Options.
 - **Added**
   - The game's own interact menu on a right-click of any ship in the list, the same one the map's object list opens.
   - A **Show on Map** button on every ship row, opening the map centred on that ship with it selected.
-  - Thanks to WHOAMI for the both ideas.
+  - Thanks to WHOAMI for both ideas.
 
 ### [1.00] - 2026-08-12
 
