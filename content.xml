@@ -3,12 +3,12 @@
   id="ws_3782385696"
   name="Ships Trade Analyzer"
   author="Chem O`Dun"
-  version="101"
-  date="2026-09-12"
+  version="110"
+  date="2026-10-11"
   save="false"
   sync="false"
   enabled="true"
-  lastupdate="1789307333"
+  lastupdate="1791740037"
   description="Analyses the trade log of your ships in-game: profit per ship and per ware, transaction and completed-trade tables, profit graphs, ware breakdowns and cargo load statistics.">
   <text language="7"
     description="Analyses the trade log of your ships in-game: profit per ship and per ware, transaction and completed-trade tables, profit graphs, ware breakdowns and cargo load statistics."></text>
@@ -60,5 +60,5 @@
   <dependency version="800"></dependency>
   <dependency id="ws_2042901274" optional="false" name="SirNukes Mod Support APIs" version="195"></dependency>
   <dependency id="ws_3715253556" optional="false" name="Options Helper" version="110"></dependency>
-  <dependency id="ws_3770927339" optional="false" name="Print Extension List" version="100"></dependency>
+  <dependency id="ws_3770927339" optional="false" name="Print Extension List" version="101"></dependency>
 </content>
