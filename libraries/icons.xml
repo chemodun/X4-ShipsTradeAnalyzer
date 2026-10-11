@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<diff>
+  <add sel="/icons">
+    <icon name="tlt_shipstradeanalyzer" texture="extensions\ships_trade_analyzer\assets\fx\gui\textures\top_level_tabs\tlt_shipstradeanalyzer.tga" height="128" width="128"></icon>
+  </add>
+</diff>

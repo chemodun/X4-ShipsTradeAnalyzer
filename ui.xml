@@ -5,9 +5,11 @@
         <dependency name="sn_mod_support_apis" />
         <dependency name="ego_detailmonitor" />
         <dependency name="ego_interactmenu" />
+        <file name="ui/sta_econlog.lua" />
         <file name="ui/sta_data.lua" />
         <file name="ui/sta_graph.lua" />
         <file name="ui/sta_trades.lua" />
         <file name="ui/sta_menu.lua" />
+        <savedvariable name="__STA_ENGINE_LOG" storage="userdata" />
     </environment>
 </addon>

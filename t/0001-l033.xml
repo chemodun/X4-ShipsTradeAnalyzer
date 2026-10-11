@@ -74,10 +74,15 @@
             <t id="1032">Nombre de vaisseaux</t>
             <t id="1033">Avec transactions</t>
             <t id="1035">Injecter internes</t>
+            <t id="1036">Compter internes</t>
 
             <!-- Options page -->
             <t id="90101">Intervalle d'actualisation des données</t>
             <t id="90102">Séparation des échanges internes</t>
+            <t id="90103">Échanges internes depuis le moteur du jeu</t>
+            <t id="90104">Échanges internes depuis le moteur du jeu \(non disponible dans cette version du jeu\)</t>
+            <t id="90105">Échanges internes depuis le moteur du jeu \(s'applique après sauvegarde et chargement de la partie\)</t>
+            <t id="90106">Afficher l'Analyseur de commerce des vaisseaux dans le menu supérieur</t>
 
             <!-- Section: Debug (90900) -->
             <t id="90900">Débogage</t>

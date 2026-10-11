@@ -14,6 +14,8 @@ Brings the analysis of [X4 Player Ship Trade Analyzer](https://www.nexusmods.com
   - **Wares by Ships** - the same, transposed: one bar per ware, split by the ships that carried it.
   - **Cargo Load** - how full each ship actually ran, average and best.
 - **Inject Internal** \(on by default\) - an artificial try to avoid game engine limitations.
+- **Internal Trades from the Game Engine** \(optional, in Extension Options\) - the real trades between your ships and your stations, read from the game's own economy log. While it is on, **Inject Internal** becomes **Account Internal** and switches these real trades on or off.
+- **Top menu icon** \(optional, in Extension Options\) - opens the analyzer from the game's top menu row, next to the map.
 - **Filters** applying to every view, by assigned station, by ship size, by cargo type, etc.
 - **Sorting** of the ship list by name or by estimated profit, with the filtered total shown above it.
 - **Reverse order** on the ranked views, to look at the bottom of the ranking instead of the top.
@@ -35,20 +37,41 @@ Brings the analysis of [X4 Player Ship Trade Analyzer](https://www.nexusmods.com
 
 ## Notes and limitations
 
-- The game engine does not provide data for trading between players' ships and player stations, despite the fact that information is stored in the game memory and later in the save file. This mod cannot show those trades, and they are not counted in the profit totals.
+- The game engine does not provide data for trading between players' ships and player stations, despite the fact that information is stored in the game memory and later in the save file. Without the **Internal Trades from the Game Engine** option those trades are not shown and not counted in the profit totals.
+- **Internal Trades from the Game Engine** reads that data directly from the game's memory, on Windows only. It is checked once per game version: switch the option on, then save and load the game. The first load after that, and the first load after every game update, takes a few seconds longer. If a game version does not match what the mod expects, or on the native Linux version, the option is shown as not available and nothing is read. Trades with a destroyed station are not taken from the game engine log.
 - Ships that have been destroyed or sold no longer appear.
 - Profit in By Transactions mode is an estimate. For container wares it compares against the ware's average price; for mined solids, liquids and gases there is no purchase to compare against, so the whole sale counts as profit.
+
+## Reading the game's trade log: risks and safeguards
+
+The game gives mods no way to read the trades between your own ships and stations, so **Internal Trades from the Game Engine** reads them straight from the game's memory. That is not an official interface: a game update can move the data, and a wrong read can crash the game. The mod is built so that this is unlikely, and harmless if it happens:
+
+- **Off by default.** Nothing is read until you switch the option on.
+- **Read only.** The mod never writes to the game's memory and never changes your save.
+- **Checked before use.** Every location is confirmed against the game's own code before the first read, once per game version; later loads reuse that result and cost nothing.
+- **Crash guard.** Before each read the mod notes that a read is in progress and clears the note only when the read finished. If the game stopped in between, that game version is marked as not available, the option turns inactive, and the mod never tries it again on that version. After a game update it tries once more.
+- **Tested** on 8.00 and 9.00, GOG and Steam.
+
+If the option ever causes trouble, switch it off in Extension Options and send me the game log.
 
 ## Installation
 
 - **Steam Workshop**: [Ships Trade Analyzer](https://steamcommunity.com/sharedfiles/filedetails/?id=3782385696).
 - **Nexus Mods**: [Ships Trade Analyzer](https://www.nexusmods.com/x4foundations/mods/2320)
 
+## Save state
+
+**No** (removing the extension does not break saves).
+
 ## Usage
 
 Right-click any player-owned ship and pick **Trade Analyzer**.
 
 ![Context Menu](docs/images/context_menu.png)
+
+With **Show the Ships Trade Analyzer in the top menu** on, its icon in the top menu row opens it as well.
+
+![Top Menu](docs/images/top_menu.png)
 
 Opening will preselects that ship, if ship has transactions in the log. Otherwise, the first ship in the list is selected.
 A ship is picked by making its row the current one in the list on the left, exactly like the object list on the map.
@@ -87,6 +110,13 @@ A ship is picked by making its row the current one in the list on the left, exac
 
   ![Cargo Load - reverse order](docs/images/cargo_load_reverse.png)
 
+With **Internal Trades from the Game Engine** on, **Account Internal** decides whether the trades between your own ships and stations are counted. Mining and supply ships that only deliver to your stations climb from nothing to the top of the list, and the fleet total grows with them:
+
+- **Account Internal** on:
+  ![Account Internal on](docs/images/account_internal_on.png)
+- **Account Internal** off, the same fleet at the same moment:
+  ![Account Internal off](docs/images/account_internal_off.png)
+
 Right-clicking a ship **in the list on the left** opens the game's own interact menu for it, the same one the map's object list opens, so its orders, information, rename and comm are all reachable without leaving the analyzer.
 ![Context Menu in Analyzer](docs/images/context_menu_in_analyzer.png)
 The button at the start of every ship row opens the map centred on that ship, with it already selected. Going back returns you to the analyzer as you left it.
@@ -100,7 +130,9 @@ Found under Extension Options.
 ![Options](docs/images/options.png)
 
 - **Data Refresh Interval** - how old the last reading may be before opening the menu takes a new one, 0 to 10 in-game minutes. At 0 every open re-reads the trade log; at 10 a reading is kept for ten minutes and only **Refresh** replaces it sooner.
+- **Internal Trades from the Game Engine** - off by default. Takes the trades between your own ships and stations from the game's economy log; applies after saving and loading the game. Inactive when the current game version is not supported.
 - **Internal Trades Separation** - used by **Inject Internal**: two trades of the same ware in the same direction further apart than this came from separate visits to the home station, 5 to 30 in-game minutes. Lower it for short local runs, raise it for long hauls. Changing it re-reads the trade log on the next menu open.
+- **Show the Ships Trade Analyzer in the top menu** - off by default. Adds the analyzer's icon to the top menu row. When the row would hold more icons than fit, the game's own scrolling row is switched on, and switched off again once they fit.
 - **Debug Level** - None, Debug or Trace. Leave at None unless you are reporting a problem.
 
 ## Credits
@@ -110,10 +142,17 @@ Found under Extension Options.
 
 ## Acknowledgements
 
-- [EGOSOFT](https://www.egosoft.com) — for the X series.
-- [SirNukes](https://next.nexusmods.com/profile/sirnukes?gameId=2659) — for the Mod Support APIs that power the UI hooks.
+- [EGOSOFT](https://www.egosoft.com) - for the X series.
+- [SirNukes](https://next.nexusmods.com/profile/sirnukes?gameId=2659) - for the Mod Support APIs that power the UI hooks.
 
 ## Changelog
+
+### [1.10] - 2026-10-11
+
+- **Added**
+  - Optional **Internal Trades from the Game Engine**: real trades between your ships and stations, read from the game's economy log.
+  - **Account Internal** on the main screen, to count those trades or leave them out.
+  - Optional top menu icon.
 
 ### [1.01] - 2026-09-12
 

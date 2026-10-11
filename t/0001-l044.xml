@@ -74,10 +74,15 @@
             <t id="1032">Number of Ships</t>
             <t id="1033">With Transactions</t>
             <t id="1035">Inject Internal</t>
+            <t id="1036">Account Internal</t>
 
             <!-- Options page -->
             <t id="90101">Data Refresh Interval</t>
             <t id="90102">Internal Trades Separation</t>
+            <t id="90103">Internal Trades from the Game Engine</t>
+            <t id="90104">Internal Trades from the Game Engine \(not available in this game version\)</t>
+            <t id="90105">Internal Trades from the Game Engine \(applies after saving and loading the game\)</t>
+            <t id="90106">Show the Ships Trade Analyzer in the top menu</t>
 
             <!-- Section: Debug (90900) -->
             <t id="90900">Debug</t>

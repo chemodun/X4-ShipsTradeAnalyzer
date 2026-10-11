@@ -1,7 +1,8 @@
 -- Ships Trade Analyzer - menu.
 --
 -- Standalone top-level menu, registered the way vanilla registers TransactionLogMenu
--- and opened from the interaction menu of a player ship or station. Left panel:
+-- and opened from the interaction menu of a player ship or station, or from its own
+-- top-level icon when the Options switch it on. Left panel:
 -- view, mode, filters and the ship list. Right panel: the selected view.
 --
 -- A ship is picked the way the map's object list picks one - the current row is the
@@ -120,6 +121,148 @@ end
 local function onOpenMenuEvent(_, componentLuaId)
   local id64 = ConvertIDTo64Bit(componentLuaId)
   OpenMenu("ShipsTradeAnalyzerMenu", { 0, 0, id64 }, { "MapMenu", { 0, 0 }, nil })
+end
+
+-- *** top-level entry ***
+
+local TOP_LEVEL_ID = "shipstradeanalyzer"
+-- Shared with Protect Sector, Rescue Rangers and Empire Manager: only the mod that
+-- switched vanilla's 5-icon carousel on may switch it off again.
+local SCROLLING_MARK = "chemodunOverflowScrolling"
+local TOP_LEVEL_CHECK = 5 -- real seconds between checks that the row still fits
+
+-- Read directly: this file's init runs before sta_data's, and the start menu has no player.
+local function topMenuIconOn()
+  local playerId = ConvertStringTo64Bit(tostring(C.GetPlayerID()))
+  if playerId == 0 then
+    return false
+  end
+  local cfg = GetNPCBlackboard(playerId, "$ShipsTradeAnalyzerConfig")
+  return type(cfg) == "table" and (cfg.topMenuIcon == true or cfg.topMenuIcon == 1)
+end
+
+-- Vanilla builds the row as one table of shown entries + 2 columns; past
+-- Helper.maxTableCols every top-level menu fails to open.
+local function topLevelRoom()
+  local shown = 0
+  for _, entry in ipairs(Helper.topLevelMenus) do
+    if Helper.checkTopLevelConditions(entry) then
+      shown = shown + 1
+    end
+  end
+  local max = (Helper.maxTableCols or 13) - 2
+  return max - shown, shown, max
+end
+
+local function hasTopLevelEntry()
+  for _, entry in ipairs(Helper.topLevelMenus) do
+    if entry.id == TOP_LEVEL_ID then
+      return true
+    end
+  end
+  return false
+end
+
+local function removeTopLevelEntry()
+  ---@type table[]
+  local list = Helper.topLevelMenus
+  for i, entry in ipairs(list) do
+    if entry.id == TOP_LEVEL_ID then
+      table.remove(list, i)
+      sta.debugLog("top-level entry removed.")
+      return
+    end
+  end
+end
+
+-- Not behind the debug level: a player's log must show why the top menu scrolls.
+local function enableTopLevelScrolling(shown, max)
+  local cfg = Helper.topLevelConfig
+  if (not cfg) or cfg.scrolling then
+    return
+  end
+  cfg.scrolling = true
+  cfg[SCROLLING_MARK] = true
+  DebugError(string.format("[STA] the top menu shows %d entries, at most %d fit in a row: switched it to scrolling. Switch the Ships Trade Analyzer top menu icon off in Extension Options to get the row back.", shown, max))
+end
+
+local function releaseTopLevelScrolling()
+  local cfg = Helper.topLevelConfig
+  if not (cfg and cfg.scrolling and cfg[SCROLLING_MARK]) then
+    return
+  end
+  local room, shown, max = topLevelRoom()
+  if room < 0 then
+    sta.debugLog("top menu keeps scrolling: %d entries, at most %d fit.", shown, max)
+    return
+  end
+  cfg.scrolling = false
+  cfg[SCROLLING_MARK] = nil
+  DebugError(string.format("[STA] the top menu shows %d entries, at most %d fit in a row: switched scrolling off.", shown, max))
+end
+
+local scheduleTopLevelCheck
+
+local function checkTopLevelRow()
+  menu.topLevelCheckQueued = nil
+  if not hasTopLevelEntry() then
+    return
+  end
+  local room, shown, max = topLevelRoom()
+  if room < 0 then
+    enableTopLevelScrolling(shown, max)
+  end
+  scheduleTopLevelCheck()
+end
+
+-- Other mods may add their entries after ours, and vanilla's own count changes
+-- mid-game (terraforming, docking, ventures).
+scheduleTopLevelCheck = function()
+  if menu.topLevelCheckQueued then
+    return
+  end
+  menu.topLevelCheckQueued = true
+  Helper.addDelayedOneTimeCallbackOnUpdate(checkTopLevelRow, false, getElapsedTime() + TOP_LEVEL_CHECK)
+end
+
+local function addTopLevelEntry()
+  ---@type table[]
+  local list = Helper.topLevelMenus
+  -- Right after Player Information; after the map should a mod have removed it.
+  local afterInfo, afterMap
+  for i, entry in ipairs(list) do
+    if entry.id == TOP_LEVEL_ID then
+      return
+    end
+    if entry.id == "playerinfo" then
+      afterInfo = i + 1
+    elseif entry.id == "map" then
+      afterMap = i + 1
+    end
+  end
+  local pos = afterInfo or afterMap or (#list + 1)
+  table.insert(list, pos, {
+    id = TOP_LEVEL_ID, name = ReadText(PAGE, 1), icon = "tlt_shipstradeanalyzer", shortcut = "",
+    menu = menu.name, helpOverlayID = "toplevel_shipstradeanalyzer", helpOverlayText = ReadText(PAGE, 2), param = { 0, 0 },
+  })
+  local room, shown, max = topLevelRoom()
+  sta.debugLog("top-level entry added at %d of %d, %d of %d shown.", pos, #list, shown, max)
+  if room < 0 then
+    enableTopLevelScrolling(shown, max)
+  end
+  scheduleTopLevelCheck()
+end
+
+local function syncTopLevelEntry()
+  if not Helper then
+    return
+  end
+  if topMenuIconOn() then
+    addTopLevelEntry()
+  else
+    removeTopLevelEntry()
+    releaseTopLevelScrolling()
+  end
 end
 
 -- *** state ***
@@ -429,7 +572,16 @@ function menu.onShowMenu(state)
     end
   end
 
+  syncTopLevelEntry()
+  Helper.setTabScrollCallback(menu, menu.onTabScroll)
   menu.createFrame()
+end
+
+function menu.onTabScroll(direction)
+  local step = (direction == "right") and 1 or ((direction == "left") and -1 or 0)
+  if step ~= 0 and topMenuIconOn() then
+    Helper.scrollTopLevel(menu, TOP_LEVEL_ID, step)
+  end
 end
 
 -- Called on every display(), but the tables are rebuilt from scratch each refresh.
@@ -508,7 +660,7 @@ function menu.toggleWithTransactions(checked)
   refreshFromFirstPage()
 end
 
--- The legs are invented as the log is read, so the flag re-reads it.
+-- Internal trades are added as the log is read, so the flag re-reads it.
 function menu.toggleInjectInternal(checked)
   sta.injectInternal = checked
   menu.buttonRefresh()
@@ -662,6 +814,10 @@ function menu.createFrame()
     y               = 0,
   })
   menu.infoFrame:setBackground("solid", { color = Color["frame_background_semitransparent"] })
+
+  -- Every panel starts under the top-level row when it is shown.
+  local topLevelBottom = topMenuIconOn() and Helper.createTopLevelTab(menu, TOP_LEVEL_ID, menu.infoFrame, "", nil, true) or nil
+  menu.topY = ((topLevelBottom or 0) > 0) and (topLevelBottom + Helper.borderSize) or Helper.frameBorder
 
   local usableWidth = Helper.viewWidth - 2 * Helper.frameBorder
   local leftWidth   = Helper.round(mapInfoTableWidth() * config.leftPanelShare)
@@ -821,7 +977,7 @@ end
 local function detailPage(itemCount, headerHeight)
   local pitch   = rowPitch()
   -- getFullHeight puts no border below its last row, so the header owes one.
-  local budget  = detailBottom() - Helper.frameBorder - headerHeight - Helper.borderSize
+  local budget  = detailBottom() - menu.topY - headerHeight - Helper.borderSize
   local perPage = math.max(1, math.floor(budget / pitch))
 
   menu.pageCount = math.max(1, math.ceil(itemCount / perPage))
@@ -940,9 +1096,9 @@ local function centerInCell(cell, size)
 end
 
 -- A checkbox without an explicit width stretches over the cell.
-local function createCenteredCheckBox(cell, checked)
+local function createCenteredCheckBox(cell, checked, active)
   local size = Helper.scaleX(Helper.standardTextHeight)
-  cell:createCheckBox(checked, { width = size, height = size, scaling = false })
+  cell:createCheckBox(checked, { width = size, height = size, scaling = false, active = active ~= false })
   return centerInCell(cell, size)
 end
 
@@ -953,8 +1109,8 @@ function menu.createLeftPanel(x, width)
   -- A control is a label over 1-2 and the widget over 3-5; a ship row is the map
   -- button in 1, the name over 2-4 and its profit in 5.
   local leftTable = menu.infoFrame:addTable(5, {
-    tabOrder = 1, width = width, x = x, y = Helper.frameBorder, borderEnabled = true,
-    maxVisibleHeight = scrollHeight(Helper.frameBorder), multiSelect = multi,
+    tabOrder = 1, width = width, x = x, y = menu.topY, borderEnabled = true,
+    maxVisibleHeight = scrollHeight(menu.topY), multiSelect = multi,
     backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
   })
   -- Column 1 belongs to the ship rows alone; every other row spans over it.
@@ -985,8 +1141,9 @@ function menu.createLeftPanel(x, width)
   row[3].handlers.onDropDownConfirmed = menu.selectMode
 
   -- Not a filter: it changes what the log is read as, so it sits above them.
+  -- With the engine log it switches the real internal trades instead of invented legs.
   row = leftTable:addRow(true, { fixed = true })
-  row[1]:setColSpan(2):createText(ReadText(PAGE, 1035), { halign = "left" })
+  row[1]:setColSpan(2):createText(ReadText(PAGE, sta.engineLog and 1036 or 1035), { halign = "left" })
   createCenteredCheckBox(row[3]:setColSpan(3), sta.injectInternal)
   row[3].handlers.onClick = function(_, checked) return menu.toggleInjectInternal(checked) end
 
@@ -1148,7 +1305,7 @@ function menu.createLeftPanel(x, width)
     -- The engine never moves the top row to the selection, so a first build opened
     -- on a ship far down the list would hide it.
     if menu.shipTopRow == nil then
-      local visible   = math.max(1, math.floor((scrollHeight(Helper.frameBorder) - beforeShips) / menu.measuredPitch))
+      local visible   = math.max(1, math.floor((scrollHeight(menu.topY) - beforeShips) / menu.measuredPitch))
       local firstShip = #leftTable.rows - #rows + 1
       if (selectedRow - firstShip + 1) > visible then
         menu.shipTopRow = selectedRow - visible + 1
@@ -1181,8 +1338,8 @@ end
 
 local function emptyPanel(x, width, textId)
   local t = menu.infoFrame:addTable(1, {
-    tabOrder = 2, width = width, x = x, y = Helper.frameBorder,
-    maxVisibleHeight = scrollHeight(Helper.frameBorder),
+    tabOrder = 2, width = width, x = x, y = menu.topY,
+    maxVisibleHeight = scrollHeight(menu.topY),
     backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
   })
   local row = t:addRow(false, { fixed = true })
@@ -1202,8 +1359,8 @@ function menu.createTransactionsPanel(x, width)
 
   -- Station and sector share one column, the way an expanded trade shows them.
   local t = menu.infoFrame:addTable(10, {
-    tabOrder = 2, width = width, x = x, y = Helper.frameBorder, borderEnabled = true,
-    maxVisibleHeight = scrollHeight(Helper.frameBorder, detailBottom()),
+    tabOrder = 2, width = width, x = x, y = menu.topY, borderEnabled = true,
+    maxVisibleHeight = scrollHeight(menu.topY, detailBottom()),
     backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
   })
 
@@ -1276,8 +1433,8 @@ function menu.createTradesPanel(x, width)
   end
 
   local t = menu.infoFrame:addTable(9, {
-    tabOrder = 2, width = width, x = x, y = Helper.frameBorder, borderEnabled = true,
-    maxVisibleHeight = scrollHeight(Helper.frameBorder, detailBottom()),
+    tabOrder = 2, width = width, x = x, y = menu.topY, borderEnabled = true,
+    maxVisibleHeight = scrollHeight(menu.topY, detailBottom()),
     backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
   })
 
@@ -1398,8 +1555,8 @@ function menu.createGraphPanel(x, width)
   -- The cell needs an explicit height: the screen's own aspect ratio, capped at
   -- what the legend leaves above it.
   local graphHeight = math.floor(math.min(width * Helper.viewHeight / Helper.viewWidth,
-    contentBottom(#legendEntries) - Helper.frameBorder))
-  local t = menu.infoFrame:addTable(1, { tabOrder = 2, width = width, x = x, y = Helper.frameBorder })
+    contentBottom(#legendEntries) - menu.topY))
+  local t = menu.infoFrame:addTable(1, { tabOrder = 2, width = width, x = x, y = menu.topY })
   local row = t:addRow(false, { fixed = true })
   menu.graph = row[1]:createGraph({ height = graphHeight, scaling = false })
   menu.graph:setTitle(ReadText(PAGE, 103),
@@ -1482,14 +1639,14 @@ function menu.createRankedPanel(x, width, groupBy)
   -- The title gets a table of its own, so no data table carries a header row and
   -- none of them can start a row higher than its neighbour.
   local titleTable = menu.infoFrame:addTable(1, {
-    tabOrder = 2, width = width, x = x, y = Helper.frameBorder,
-    maxVisibleHeight = scrollHeight(Helper.frameBorder, bottom),
+    tabOrder = 2, width = width, x = x, y = menu.topY,
+    maxVisibleHeight = scrollHeight(menu.topY, bottom),
     backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
   })
   local titleRow = titleTable:addRow(false, { fixed = true, bgColor = Color["row_title_background"] })
   titleRow[1]:createText(ReadText(PAGE, (groupBy == "ware") and 105 or 104), Helper.titleTextProperties)
 
-  local dataY = Helper.frameBorder + titleTable:getFullHeight() + Helper.borderSize
+  local dataY = menu.topY + titleTable:getFullHeight() + Helper.borderSize
 
   local function addDataTable(numCols, tableWidth, tableX, tabOrder)
     return menu.infoFrame:addTable(numCols, {
@@ -1598,8 +1755,8 @@ function menu.createCargoLoadPanel(x, width)
   end
 
   local t = menu.infoFrame:addTable(4, {
-    tabOrder = 2, width = width, x = x, y = Helper.frameBorder, borderEnabled = true,
-    maxVisibleHeight = scrollHeight(Helper.frameBorder),
+    tabOrder = 2, width = width, x = x, y = menu.topY, borderEnabled = true,
+    maxVisibleHeight = scrollHeight(menu.topY),
     backgroundID = "solid", backgroundColor = Color["frame_background_semitransparent"],
   })
   t:setColWidth(1, math.floor((menu.leftPanelWidth or width) * config.nameColShare), false)
@@ -1761,7 +1918,9 @@ end
 -- populated the config blackboard the filter defaults come from.
 local function Init()
   init()
+  syncTopLevelEntry()
   RegisterEvent("ShipsTradeAnalyzer.OpenMenu", onOpenMenuEvent)
+  RegisterEvent("ShipsTradeAnalyzer.TopMenuIcon", syncTopLevelEntry)
 end
 
 Register_OnLoad_Init(Init)

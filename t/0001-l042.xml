@@ -74,10 +74,15 @@
             <t id="1032">Počet lodí</t>
             <t id="1033">S transakcemi</t>
             <t id="1035">Vložit interní</t>
+            <t id="1036">Započítat interní</t>
 
             <!-- Options page -->
             <t id="90101">Interval obnovení dat</t>
             <t id="90102">Oddělení interních obchodů</t>
+            <t id="90103">Interní obchody z herního enginu</t>
+            <t id="90104">Interní obchody z herního enginu \(v této verzi hry nejsou dostupné\)</t>
+            <t id="90105">Interní obchody z herního enginu \(projeví se po uložení a načtení hry\)</t>
+            <t id="90106">Zobrazit Analyzátor obchodu lodí v horní nabídce</t>
 
             <!-- Section: Debug (90900) -->
             <t id="90900">Ladění</t>

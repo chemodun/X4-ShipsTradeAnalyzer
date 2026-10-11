@@ -74,10 +74,15 @@
             <t id="1032">Numero di navi</t>
             <t id="1033">Con transazioni</t>
             <t id="1035">Inserisci interne</t>
+            <t id="1036">Conteggia interne</t>
 
             <!-- Options page -->
             <t id="90101">Intervallo di aggiornamento dei dati</t>
             <t id="90102">Separazione degli scambi interni</t>
+            <t id="90103">Scambi interni dal motore di gioco</t>
+            <t id="90104">Scambi interni dal motore di gioco \(non disponibile in questa versione del gioco\)</t>
+            <t id="90105">Scambi interni dal motore di gioco \(si applica dopo aver salvato e caricato la partita\)</t>
+            <t id="90106">Mostra l'Analizzatore commerciale delle navi nel menu superiore</t>
 
             <!-- Section: Debug (90900) -->
             <t id="90900">Debug</t>

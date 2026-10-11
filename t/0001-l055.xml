@@ -74,10 +74,15 @@
             <t id="1032">Número de naves</t>
             <t id="1033">Com transações</t>
             <t id="1035">Injetar internas</t>
+            <t id="1036">Contabilizar internas</t>
 
             <!-- Options page -->
             <t id="90101">Intervalo de atualização dos dados</t>
             <t id="90102">Separação de negócios internos</t>
+            <t id="90103">Negócios internos do motor do jogo</t>
+            <t id="90104">Negócios internos do motor do jogo \(indisponível nesta versão do jogo\)</t>
+            <t id="90105">Negócios internos do motor do jogo \(aplica-se após salvar e carregar o jogo\)</t>
+            <t id="90106">Mostrar o Analisador de comércio de naves no menu superior</t>
 
             <!-- Section: Debug (90900) -->
             <t id="90900">Depuração</t>

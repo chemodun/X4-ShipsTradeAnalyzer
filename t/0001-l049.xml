@@ -74,10 +74,15 @@
             <t id="1032">Anzahl Schiffe</t>
             <t id="1033">Mit Transaktionen</t>
             <t id="1035">Interne einfügen</t>
+            <t id="1036">Interne verbuchen</t>
 
             <!-- Options page -->
             <t id="90101">Aktualisierungsintervall der Daten</t>
             <t id="90102">Trennung interner Handelsfahrten</t>
+            <t id="90103">Interne Handelsfahrten aus der Spiel-Engine</t>
+            <t id="90104">Interne Handelsfahrten aus der Spiel-Engine \(in dieser Spielversion nicht verfügbar\)</t>
+            <t id="90105">Interne Handelsfahrten aus der Spiel-Engine \(wirkt nach Speichern und Laden des Spiels\)</t>
+            <t id="90106">Schiffs-Handelsanalyse im oberen Menü anzeigen</t>
 
             <!-- Section: Debug (90900) -->
             <t id="90900">Debug</t>

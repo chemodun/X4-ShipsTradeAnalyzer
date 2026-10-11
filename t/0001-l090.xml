@@ -74,10 +74,15 @@
             <t id="1032">Gemi sayısı</t>
             <t id="1033">İşlemi olanlar</t>
             <t id="1035">İç işlem ekle</t>
+            <t id="1036">İç işlemleri hesaba kat</t>
 
             <!-- Options page -->
             <t id="90101">Veri Yenileme Aralığı</t>
             <t id="90102">Dahili Ticaret Ayrımı</t>
+            <t id="90103">Oyun Motorundan Dahili Ticaret</t>
+            <t id="90104">Oyun Motorundan Dahili Ticaret \(bu oyun sürümünde kullanılamaz\)</t>
+            <t id="90105">Oyun Motorundan Dahili Ticaret \(oyunu kaydedip yükledikten sonra geçerli olur\)</t>
+            <t id="90106">Gemi Ticaret Analizcisini üst menüde göster</t>
 
             <!-- Section: Debug (90900) -->
             <t id="90900">Hata Ayıklama</t>

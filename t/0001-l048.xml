@@ -74,10 +74,15 @@
             <t id="1032">Liczba statków</t>
             <t id="1033">Z transakcjami</t>
             <t id="1035">Dodaj wewnętrzne</t>
+            <t id="1036">Uwzględnij wewnętrzne</t>
 
             <!-- Options page -->
             <t id="90101">Interwał odświeżania danych</t>
             <t id="90102">Rozdzielenie handlu wewnętrznego</t>
+            <t id="90103">Handel wewnętrzny z silnika gry</t>
+            <t id="90104">Handel wewnętrzny z silnika gry \(niedostępne w tej wersji gry\)</t>
+            <t id="90105">Handel wewnętrzny z silnika gry \(działa po zapisaniu i wczytaniu gry\)</t>
+            <t id="90106">Pokaż Analizator handlu statków w górnym menu</t>
 
             <!-- Section: Debug (90900) -->
             <t id="90900">Debugowanie</t>

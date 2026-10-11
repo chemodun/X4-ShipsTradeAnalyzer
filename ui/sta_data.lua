@@ -19,6 +19,9 @@ ffi.cdef [[
   bool       IsComponentOperational(UniverseID componentid);
 ]]
 
+---@diagnostic disable-next-line: unresolved-require
+local econlog = require("extensions.ships_trade_analyzer.ui.sta_econlog")
+
 local sta = {
   playerId   = nil,
   debugLevel = "none",
@@ -40,10 +43,13 @@ local sta = {
   totalEntries  = 0, -- trade entries kept across every ship
   skippedShips  = 0, -- ships whose log exceeded maxEntriesPerShip
   injectedEntries = 0, -- home-station legs invented across every ship
+  engineEntries = 0, -- player-to-player trades taken from the economy trade log
 
   -- The engine logs no trade between a player station and a player ship; off shows
   -- the log raw, on reconstructs the missing half.
   injectInternal = true,
+  -- Whether the last scan took those trades from the economy log; injection is then off.
+  engineLog = false,
   -- Two same-way trades of one ware further apart than this are separate trips;
   -- the Options value in seconds, resolved once per scan.
   multiHopSeconds = 600,
@@ -357,6 +363,35 @@ local function linkPrevious(ship)
   end
 end
 
+local function addTrade(ship, t, isSale, wareId, price, amount, partner)
+  local ware = sta.getWare(wareId)
+  local sum  = price * amount
+  local used = amount * ware.volume
+
+  local tx = {
+    t        = t,
+    sale     = isSale,
+    ware     = wareId,
+    price    = price,
+    vol      = amount,
+    sum      = sum,
+    profit   = estimateProfit(ware, isSale, sum, amount),
+    used     = used,
+    load     = loadPercent(ship, wareId, ware, used),
+    pName    = displayName(partner.name, partner.idcode),
+    pOwner   = partner.owner,
+    pSector  = partner.sector,
+    pSecOwner = partner.sectorOwner,
+    pSecMacro = partner.sectorMacro,
+    pIcon    = partner.icon,
+    pLuaId   = partner.luaId,
+  }
+  ship.tx[#ship.tx + 1] = tx
+  ship.profit  = ship.profit + tx.profit
+  ship.turnover = ship.turnover + sum
+  sta.totalEntries = sta.totalEntries + 1
+end
+
 local function readShipLog(ship, startTime, endTime)
   local id64 = ship.id64
   local total = tonumber(C.GetNumTransactionLog(id64, startTime, endTime)) or 0
@@ -392,41 +427,93 @@ local function readShipLog(ship, startTime, endTime)
           local partner = counterpartInfo(otherId,
             ffi.string(buf[i].partnername), ffi.string(buf[i].partneridcode))
 
-          local ware = sta.getWare(wareId)
-          local sum  = price * amount
-          local used = amount * ware.volume
-
-          local tx = {
-            t        = tonumber(buf[i].time) or 0,
-            sale     = isSale,
-            ware     = wareId,
-            price    = price,
-            vol      = amount,
-            sum      = sum,
-            profit   = estimateProfit(ware, isSale, sum, amount),
-            used     = used,
-            load     = loadPercent(ship, wareId, ware, used),
-            pName    = displayName(partner.name, partner.idcode),
-            pOwner   = partner.owner,
-            pSector  = partner.sector,
-            pSecOwner = partner.sectorOwner,
-            pSecMacro = partner.sectorMacro,
-            pIcon    = partner.icon,
-            pLuaId   = partner.luaId,
-          }
-          ship.tx[#ship.tx + 1] = tx
-          ship.profit  = ship.profit + tx.profit
-          ship.turnover = ship.turnover + sum
-          sta.totalEntries = sta.totalEntries + 1
+          addTrade(ship, tonumber(buf[i].time) or 0, isSale, wareId, price, amount, partner)
         end
       end
     end
   end
-
-  -- The engine returns entries newest-first in places; pairing and the graph both
-  -- assume ascending time.
-  table.sort(ship.tx, function(a, b) return a.t < b.t end)
   traceLog("readShipLog: %s kept %d trade entries.", ship.fullName, #ship.tx)
+end
+
+-- The engine returns entries newest-first in places, and engine-log trades are
+-- appended after; pairing and the graph both assume ascending time.
+local function finishShipLog(ship)
+  table.sort(ship.tx, function(a, b) return a.t < b.t end)
+  local excess = #ship.tx - config.maxEntriesPerShip
+  if excess > 0 then
+    for i = 1, excess do
+      local tx = ship.tx[i]
+      ship.profit = ship.profit - tx.profit
+      ship.turnover = ship.turnover - tx.sum
+    end
+    local kept = {}
+    for i = excess + 1, #ship.tx do
+      kept[#kept + 1] = ship.tx[i]
+    end
+    ship.tx = kept
+    sta.totalEntries = sta.totalEntries - excess
+  end
+end
+
+-- *** the economy trade log: trades between two player-owned objects ***
+
+local function boolOf(v)
+  return v == true or v == 1
+end
+
+-- Detected at init and switched on in the Options; the stored value alone means nothing.
+function sta.useEngineLog(cfg)
+  return econlog.detected and boolOf((cfg or sta.getConfig()).useEngineTradeLog)
+end
+
+-- The transaction log already holds every trade with a non-player party, so only
+-- trades whose other side is player-owned are taken; a destroyed one has no owner left.
+local function readEngineTrades()
+  local shipById = {}
+  for _, ship in ipairs(sta.ships) do
+    shipById[tonumber(ship.id64)] = ship
+  end
+  local partners = {}
+  local function playerPartner(id)
+    local info = partners[id]
+    if info == nil then
+      info = false
+      local id64 = ConvertStringTo64Bit(tostring(id))
+      if id ~= 0 and C.IsComponentOperational(id64)
+          and GetComponentData(ConvertStringToLuaID(tostring(id64)), "owner") == "player" then
+        info = counterpartInfo(id64, "", "")
+      end
+      partners[id] = info
+    end
+    return info
+  end
+
+  local read, skipped = econlog.readTrades(function(t, wareId, buyerId, sellerId, priceCents, amount)
+    if amount <= 0 or priceCents <= 0 then return end
+    local price = priceCents / 100
+    local buyerShip, sellerShip = shipById[buyerId], shipById[sellerId]
+    if buyerShip then
+      local partner = playerPartner(sellerId)
+      if partner then
+        addTrade(buyerShip, t, false, wareId, price, amount, partner)
+        sta.engineEntries = sta.engineEntries + 1
+      end
+    end
+    if sellerShip then
+      local partner = playerPartner(buyerId)
+      if partner then
+        addTrade(sellerShip, t, true, wareId, price, amount, partner)
+        sta.engineEntries = sta.engineEntries + 1
+      end
+    end
+  end)
+  if not econlog.detected then
+    ---@diagnostic disable-next-line: param-type-mismatch
+    SetNPCBlackboard(sta.playerId, "$ShipsTradeAnalyzerEngineLog", econlog.state)
+    DebugError("[STA] engine trade log switched off (" .. econlog.reason .. ").")
+  end
+  debugLog("readEngineTrades: %d log entries read, %d skipped, %d added; %s.",
+    read, skipped, sta.engineEntries, econlog.reason)
 end
 
 -- *** the internal legs the engine never logs ***
@@ -674,13 +761,16 @@ function sta.scan()
 
   local now = C.GetCurrentGameTime()
 
+  local cfg = sta.getConfig()
   sta.ships = {}
   sta.totalEntries = 0
   sta.skippedShips = 0
   sta.injectedEntries = 0
+  sta.engineEntries = 0
   sta.scanTime = now
   sta.scanCount = sta.scanCount + 1
-  sta.multiHopSeconds = separationSeconds()
+  sta.multiHopSeconds = separationSeconds(cfg)
+  sta.engineLog = sta.useEngineLog(cfg)
   sta.sectorOwner = {} -- sectors change hands; only cache within a scan
   sta.sectorMacro = {} -- a macro never changes, but the ids keying it go stale
   sta.stationInfo = {} -- a station moves sector and reprices between scans
@@ -688,29 +778,40 @@ function sta.scan()
 
   -- Every listable ship is kept, traded or not; the withTransactions filter is
   -- what narrows the views, and the station options derive from the same set.
-  local tradingShips, shipsWithStation = 0, 0
   local objects = GetContainedObjectsByOwner("player")
   for _, luaId in ipairs(objects) do
     if isListableShip(luaId) then
       local ship = buildShip(luaId)
       readShipLog(ship, 0, now)
-      if sta.injectInternal and ship.stationId ~= nil then
+      finishShipLog(ship)
+      if not sta.engineLog and sta.injectInternal and ship.stationId ~= nil then
         injectForShip(ship)
       end
-      linkPrevious(ship)
       sta.ships[#sta.ships + 1] = ship
-      if #ship.tx > 0 then
-        tradingShips = tradingShips + 1
-      end
-      if ship.stationKey ~= nil then
-        shipsWithStation = shipsWithStation + 1
-      end
+    end
+  end
+
+  if sta.engineLog and sta.injectInternal then
+    readEngineTrades()
+    for _, ship in ipairs(sta.ships) do
+      finishShipLog(ship)
+    end
+  end
+
+  local tradingShips, shipsWithStation = 0, 0
+  for _, ship in ipairs(sta.ships) do
+    linkPrevious(ship)
+    if #ship.tx > 0 then
+      tradingShips = tradingShips + 1
+    end
+    if ship.stationKey ~= nil then
+      shipsWithStation = shipsWithStation + 1
     end
   end
 
   sta.scanned = true
-  debugLog("scan: %d ship(s), %d trading, %d trade entries, %d under a station, %d internal leg(s).",
-    #sta.ships, tradingShips, sta.totalEntries, shipsWithStation, sta.injectedEntries)
+  debugLog("scan: %d ship(s), %d trading, %d trade entries, %d under a station, %d internal leg(s), %d from the engine log.",
+    #sta.ships, tradingShips, sta.totalEntries, shipsWithStation, sta.injectedEntries, sta.engineEntries)
 
   -- sta_graph installs its jump pass here; it requires this module, not the other way.
   if sta.afterScan ~= nil then
@@ -722,9 +823,9 @@ end
 -- when one ran: anything the caller keyed on the previous snapshot is stale.
 function sta.ensureScanned()
   local cfg = sta.getConfig()
-  -- The separation period shapes the injected legs, so a change to it invalidates
-  -- the snapshot however young it is.
-  if sta.scanned and separationSeconds(cfg) == sta.multiHopSeconds then
+  -- The separation period and the engine-log switch change what the log is read as,
+  -- so a change to either invalidates the snapshot however young it is.
+  if sta.scanned and separationSeconds(cfg) == sta.multiHopSeconds and sta.useEngineLog(cfg) == sta.engineLog then
     local minutes = tonumber(cfg.rescanIntervalMinutes)
         or config.rescanIntervalMinutes
     if C.GetCurrentGameTime() - sta.scanTime < minutes * 60 then
@@ -993,9 +1094,18 @@ function sta.init()
 
   sta.widestWareName = findWidestWareName()
 
+  -- A new game build is searched only with the option on, so it applies from the next
+  -- load after switching it on. MD shows the state on the Options page.
+  local wanted = boolOf(sta.getConfig().useEngineTradeLog)
+  econlog.detect(wanted)
+  SetNPCBlackboard(sta.playerId, "$ShipsTradeAnalyzerEngineLog", econlog.state)
+  if wanted and not econlog.detected then
+    DebugError("[STA] init: engine trade log not available (" .. econlog.reason .. ").")
+  end
+
   RegisterEvent("ShipsTradeAnalyzer.DebugLevelChanged", sta.onDebugLevelChanged)
-  debugLog("init: playerId=%s debugLevel=%s available=%s widestWare=%q.",
-    tostring(sta.playerId), sta.debugLevel, tostring(sta.available), sta.widestWareName)
+  debugLog("init: playerId=%s debugLevel=%s available=%s widestWare=%q engineLog=%s.",
+    tostring(sta.playerId), sta.debugLevel, tostring(sta.available), sta.widestWareName, econlog.reason)
 end
 
 Register_Require_With_Init("extensions.ships_trade_analyzer.ui.sta_data", sta, sta.init)

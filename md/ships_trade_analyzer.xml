@@ -11,6 +11,15 @@
       $timePeriodForInternalTradesSeparation
                               - int 5-30 minutes: two same-way trades of one ware
                                 further apart than this are separate trips home
+      $useEngineTradeLog      - bool: take player-to-player trades from the engine's
+                                economy log; applies from the next load, and only
+                                while player.entity.$ShipsTradeAnalyzerEngineLog
+                                (set by ui/sta_data.lua at every Lua init) is 'found';
+                                'missing' = not in this game build, 'unknown' = not
+                                searched yet
+      $topMenuIcon            - bool: the analyzer's own icon in the top-level menu
+                                row; ui/sta_menu.lua adds or removes it on
+                                ShipsTradeAnalyzer.TopMenuIcon
       $debugLevel             - 'none' | 'debug' | 'trace'
 
     No collection timer and no stored trade data: the trade log is the engine's own,
@@ -30,6 +39,8 @@
             <set_value name="$cfg" exact="table[
               $rescanIntervalMinutes = 1,
               $timePeriodForInternalTradesSeparation = 10,
+              $useEngineTradeLog     = false,
+              $topMenuIcon           = false,
               $debugLevel            = 'none',
             ]" />
           </actions>
@@ -97,7 +108,7 @@
         </cue>
 
         <!-- =============== Options menu registration =============== -->
-        <cue name="STA_Register_Menu" instantiate="true" version="5">
+        <cue name="STA_Register_Menu" instantiate="true" version="7">
           <conditions>
             <event_cue_signalled cue="md.Simple_Menu_API.Reloaded" />
           </conditions>
@@ -127,13 +138,14 @@
         </cue>
 
         <!-- =============== Options menu open callback =============== -->
-        <cue name="STA_Options_Menu" instantiate="true" version="5">
+        <cue name="STA_Options_Menu" instantiate="true" version="7">
           <conditions>
             <event_cue_signalled />
           </conditions>
           <actions>
             <do_if value="@player.entity.$ShipsTradeAnalyzerConfig != null">
               <set_value name="$cfg" exact="player.entity.$ShipsTradeAnalyzerConfig" />
+              <set_value name="$engineLogState" exact="@player.entity.$ShipsTradeAnalyzerEngineLog" />
 
               <run_actions ref="md.Options_Helper.Add_Title_Row">
                 <param name="title" value="{1972092439, 1}" />
@@ -155,7 +167,18 @@
                 <param name="handle" value="STA_HandleSlider" />
               </run_actions>
 
-              <!-- Only reached with Inject Internal on; the scan applies it. -->
+              <!-- Inactive once ui/sta_data.lua found no log in this game build. -->
+              <run_actions ref="md.Options_Helper.Add_Checkbox">
+                <param name="id" value="'useEngineTradeLog'" />
+                <param name="textColSpan" value="11" />
+                <param name="text" value="if $engineLogState == 'missing' then {1972092439, 90104}
+                  else if $engineLogState == 'found' then {1972092439, 90103} else {1972092439, 90105}" />
+                <param name="data" value="$cfg" />
+                <param name="active" value="$engineLogState != 'missing'" />
+                <param name="handle" value="STA_HandleCheckbox" />
+              </run_actions>
+
+              <!-- Only reached with Inject Internal on, which the engine log replaces. -->
               <run_actions ref="md.Options_Helper.Add_Slider">
                 <param name="id" value="'timePeriodForInternalTradesSeparation'" />
                 <param name="min" value="5" />
@@ -167,6 +190,15 @@
                 <param name="textColSpan" value="6" />
                 <param name="data" value="$cfg" />
                 <param name="handle" value="STA_HandleSlider" />
+              </run_actions>
+              <remove_value name="$engineLogState" />
+
+              <run_actions ref="md.Options_Helper.Add_Checkbox">
+                <param name="id" value="'topMenuIcon'" />
+                <param name="textColSpan" value="11" />
+                <param name="text" value="{1972092439, 90106}" />
+                <param name="data" value="$cfg" />
+                <param name="handle" value="STA_HandleCheckbox" />
               </run_actions>
 
               <!-- Section: Debug -->
@@ -213,6 +245,18 @@
             <set_value name="$resultTable" exact="player.entity.$ShipsTradeAnalyzerConfig" />
             <include_actions ref="md.Options_Helper.Process_Slider_Changed" />
             <remove_value name="$resultTable" />
+          </actions>
+        </cue>
+
+        <cue name="STA_HandleCheckbox" instantiate="true" version="3">
+          <conditions>
+            <event_cue_signalled />
+          </conditions>
+          <actions>
+            <set_value name="$resultTable" exact="player.entity.$ShipsTradeAnalyzerConfig" />
+            <include_actions ref="md.Options_Helper.Process_Checkbox_Changed" />
+            <remove_value name="$resultTable" />
+            <raise_lua_event name="'ShipsTradeAnalyzer.TopMenuIcon'" />
           </actions>
         </cue>
 
