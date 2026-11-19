@@ -44,23 +44,28 @@ Brings the analysis of [url=https://www.nexusmods.com/x4foundations/mods/1801]X4
 [*] It is available via Steam - [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3770927339]Print Extension List[/url]
 [*] Or via the Nexus Mods - [url=https://www.nexusmods.com/x4foundations/mods/2191]Print Extension List[/url]
 [/list]
+[*] [b]Extra UI API[/b], which reads the game's trade log for [b]Internal Trades from the Game Engine[/b]. Version [b]1.04[/b] and upper is required.
+[list]
+[*] It is available via Steam - [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3839783822]Extra UI API[/url]
+[*] Or via the Nexus Mods - [url=https://www.nexusmods.com/x4foundations/mods/2602]Extra UI API[/url]
+[/list]
 [/list]
 [h2][b]Notes and limitations[/b][/h2]
 [list]
 [*] The game engine does not provide data for trading between players' ships and player stations, despite the fact that information is stored in the game memory and later in the save file. Without the [b]Internal Trades from the Game Engine[/b] option those trades are not shown and not counted in the profit totals.
-[*] [b]Internal Trades from the Game Engine[/b] reads that data directly from the game's memory, on Windows only. It is checked once per game version: switch the option on, then save and load the game. The first load after that, and the first load after every game update, takes a few seconds longer. If a game version does not match what the mod expects, or on the native Linux version, the option is shown as not available and nothing is read. Trades with a destroyed station are not taken from the game engine log.
+[*] [b]Internal Trades from the Game Engine[/b] reads that data directly from the game's memory, through [b]Extra UI API[/b], on Windows and on the native Linux game from 9.00 on. It is checked once per game version: switch the option on, then save and load the game. The first load after that, and the first load after every game update, takes a moment longer. If a game version does not match what Extra UI API expects, the option is shown as not available and nothing is read. Trades with a destroyed station are not taken from the game engine log.
 [*] Ships that have been destroyed or sold no longer appear.
 [*] Profit in By Transactions mode is an estimate. For container wares it compares against the ware's average price; for mined solids, liquids and gases there is no purchase to compare against, so the whole sale counts as profit.
 [/list]
 [h2][b]Reading the game's trade log: risks and safeguards[/b][/h2]
 
-The game gives mods no way to read the trades between your own ships and stations, so [b]Internal Trades from the Game Engine[/b] reads them straight from the game's memory. That is not an official interface: a game update can move the data, and a wrong read can crash the game. The mod is built so that this is unlikely, and harmless if it happens:
+The game gives mods no way to read the trades between your own ships and stations, so [b]Internal Trades from the Game Engine[/b] reads them straight from the game's memory, through [b]Extra UI API[/b]. That is not an official interface: a game update can move the data, and a wrong read can crash the game. The mod is built so that this is unlikely, and harmless if it happens:
 [list]
 [*] [b]Off by default.[/b] Nothing is read until you switch the option on.
 [*] [b]Read only.[/b] The mod never writes to the game's memory and never changes your save.
 [*] [b]Checked before use.[/b] Every location is confirmed against the game's own code before the first read, once per game version; later loads reuse that result and cost nothing.
 [*] [b]Crash guard.[/b] Before each read the mod notes that a read is in progress and clears the note only when the read finished. If the game stopped in between, that game version is marked as not available, the option turns inactive, and the mod never tries it again on that version. After a game update it tries once more.
-[*] [b]Tested[/b] on 8.00 and 9.00, GOG and Steam.
+[*] [b]Tested[/b] on 8.00 and 9.00, GOG and Steam, and on the native Linux 9.00.
 [/list]
 If the option ever causes trouble, switch it off in Extension Options and send me the game log.
 
@@ -157,6 +162,17 @@ Found under Extension Options.
 [/list]
 [h2][b]Changelog[/b][/h2]
 
+[h2][1.11] - 2026-11-19[/h2]
+[list]
+[*] [b]Added[/b]
+[list]
+[*] [b]Internal Trades from the Game Engine[/b] on the native Linux game, 9.00.
+[/list]
+[*] [b]Changed[/b]
+[list]
+[*] The game's trade log is read through [b]Extra UI API[/b], now a required dependency.
+[/list]
+[/list]
 [h2][1.10] - 2026-10-11[/h2]
 [list]
 [*] [b]Added[/b]
